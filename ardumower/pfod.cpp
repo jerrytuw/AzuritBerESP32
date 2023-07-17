@@ -45,7 +45,7 @@ void RemoteControl::setRobot(Robot *aRobot) {
   this->robot = aRobot;
 }
 
-void RemoteControl::initSerial(HardwareSerial* _serialPort, uint32_t baudrate) {
+void RemoteControl::initSerial(FakeSerialClass* _serialPort, uint32_t baudrate) {
   this->serialPort = _serialPort;
   serialPort->begin(baudrate);
 }
@@ -635,8 +635,8 @@ void RemoteControl::processPerimeterMenu(String pfodCmd) {
   else if ((robot->developerActive) && (pfodCmd.startsWith("e09"))) {
     robot->areaInMowing = robot->areaInMowing + 1;
     if (robot->areaInMowing > 3) robot->areaInMowing = 1;
-    robot->perimeter.changeArea(robot->areaInMowing);
-    robot->perimeter.begin(pinPerimeterLeft, pinPerimeterRight);
+    //robot->perimeter.changeArea(robot->areaInMowing);
+    //robot->perimeter.begin(pinPerimeterLeft, pinPerimeterRight);
   }
 
   else if (pfodCmd.startsWith("e10")) robot->perimeter.swapCoilPolarityLeft = !robot->perimeter.swapCoilPolarityLeft;
@@ -771,7 +771,7 @@ void RemoteControl::sendRfidDetailMenu(int rfidDetailIdx, boolean update) {
 
   int myidx = 0;
   robot->ptr = robot->head;
-  while (myidx != rfidDetailIdx) { //parcours 
+  while (myidx != rfidDetailIdx) { //parcours
     robot->ptr = robot->ptr->next;
     myidx = myidx + 1;
   }
@@ -1481,7 +1481,7 @@ void RemoteControl::processCommandMenu(String pfodCmd) {
       robot->totalDistDrive = 0;
       robot->setActuator(ACT_CHGRELAY, 0);
       robot->setNextState(STATE_START_FROM_STATION, 1);
-      
+
     }
     else {
       if (robot->mowPatternName() == "WIRE") {
@@ -1596,7 +1596,7 @@ void RemoteControl::sendMainTestMenu(boolean update) {
   sendSlider("ya0", F("mowPatternCurr"), robot->mowPatternCurr, "", 1, 3, 0);
   sendSlider("ya1", F("laneUseNr"), robot->laneUseNr, "", 1, 3, 0);
   sendSlider("ya2", F("rollDir"), robot->rollDir, "", 1, 1, 0);
-  sendSlider("ya3", F("whereToStart"), robot->whereToStart, "", 1,9999, 0);
+  sendSlider("ya3", F("whereToStart"), robot->whereToStart, "", 1, 9999, 0);
   sendSlider("ya4", F("areaToGo"), robot->areaToGo, "", 1, 3, 0);
   sendSlider("ya5", F("actualLenghtByLane"), robot->actualLenghtByLane, "", 1, 255, 0);
   serialPort->println("}");
@@ -1631,10 +1631,13 @@ void RemoteControl::sendTestOdoMenu(boolean update) {
   serialPort->print(F("|yt2~1 turn Wheel Rev"));
   serialPort->print(F("|yt3~5 turns Wheel Rev"));  //to verify the TicksPerRevolution  and PWM right OFFSET the 2 wheel stop at the same time
   serialPort->print(F("|yt8~1 turn Left Wheel"));  //to check the correct left/right motor hardware connection
-  serialPort->print(F("|yt4~3 meter Forward")); //to verify and adjust the TicksPerCM
-  serialPort->print(F("|yt5~Rotate 360Deg"));  //to verify and adjust the odometryWheelBaseCm
-  serialPort->print(F("|yt6~Rotate 180Deg"));  //to verify and adjust the odometryWheelBaseCm
-  serialPort->print(F("|yt7~Rotate Non Stop"));//to verify and adjust the odometryWheelBaseCm
+  serialPort->print(F("|yt4~-1 turn Left Wheel")); //to verify and adjust the TicksPerCM
+  serialPort->print(F("|yt5~1 turn Right Wheel"));  //to verify and adjust the odometryWheelBaseCm
+  serialPort->print(F("|yt6~-1 turn Right Wheel"));  //to verify and adjust the odometryWheelBaseCm
+  /*serialPort->print(F("|yt4~3 meter Forward")); //to verify and adjust the TicksPerCM
+    serialPort->print(F("|yt5~Rotate 360Deg"));  //to verify and adjust the odometryWheelBaseCm
+    serialPort->print(F("|yt6~Rotate 180Deg"));  //to verify and adjust the odometryWheelBaseCm
+  */serialPort->print(F("|yt7~Rotate Non Stop"));//to verify and adjust the odometryWheelBaseCm
 
   serialPort->println("}");
 
@@ -1681,7 +1684,7 @@ void RemoteControl::processTestOdoMenu(String pfodCmd) {
     robot->odometryRight = robot->odometryLeft = 0;
     robot->motorLeftSpeedRpmSet = robot->motorRightSpeedRpmSet = robot->motorSpeedMaxRpm;
     robot->stateEndOdometryRight = robot->odometryRight + 300.00 * robot->odometryTicksPerCm;
-    robot->stateEndOdometryLeft = robot->odometryLeft + 300.00 * robot->odometryTicksPerCm;
+    robot->stateEndOdometryLeft = robot->odometryLeft + 300.00 * robot->odometryTicksPerCm;       
     robot->setNextState(STATE_TEST_MOTOR, robot->rollDir);
     sendTestOdoMenu(true);
   }
@@ -1697,7 +1700,6 @@ void RemoteControl::processTestOdoMenu(String pfodCmd) {
   else if (pfodCmd == "yt5") {
     robot->odometryRight = robot->odometryLeft = 0;
     robot->motorLeftSpeedRpmSet = robot->motorSpeedMaxRpm / 2;
-    robot->motorRightSpeedRpmSet = -robot->motorSpeedMaxRpm / 2;
     robot->stateEndOdometryRight = robot->odometryRight - (int)36000 * (robot->odometryTicksPerCm * PI * robot->odometryWheelBaseCm / 36000);
     robot->stateEndOdometryLeft = robot->odometryLeft + (int)36000 * (robot->odometryTicksPerCm * PI * robot->odometryWheelBaseCm / 36000);
     robot->setNextState(STATE_TEST_MOTOR, robot->rollDir);
@@ -1879,7 +1881,7 @@ void RemoteControl::run() {
       serialPort->print(!robot->perimeter.signalTimedOut(0));
       serialPort->print(",");
       serialPort->println(robot->perimeter.getFilterQuality(0));
-      perimeterCaptureIdx++;
+      //perimeterCaptureIdx++;
     }
   } else if (pfodState == PFOD_PLOT_GPS) {
     if (millis() >= nextPlotTime) {
@@ -1931,6 +1933,7 @@ boolean RemoteControl::readSerial() {
       char ch = serialPort->read();
       //Console.print("pfod ch=");
       //Console.println(ch);
+      //Serial.printf("%c", ch);
       if (ch == '}') pfodCmdComplete = true;
       else if (ch == '{') pfodCmd = "";
       else pfodCmd += ch;
@@ -1949,6 +1952,7 @@ boolean RemoteControl::readSerial() {
         serialPort->println(F("{=Console}"));
         pfodState = PFOD_CONSOLE;
         robot->ConsoleToPfod = true;
+        robot->ShowMessageln(F("Console : "));
       }
       else if (pfodCmd == "y1") {
         // plot battery

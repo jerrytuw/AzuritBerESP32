@@ -8,9 +8,9 @@
   #define SDA A4
   #define SCL A5
 #else
-  // Mega2560/Due pins
-  #define SDA 20
-  #define SCL 21
+  // Mega2560/Due pins/ESP32
+  #define SDA 21
+  #define SCL 22
  
 #endif
 

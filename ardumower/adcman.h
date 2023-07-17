@@ -42,6 +42,7 @@ How to use it:
 
 
 #include <Arduino.h>
+#include "robot.h"
 
 #define ADC_BITS  12    // 12 bit ADC  
 #define ADC_REF  3.3   // 3.3 Volt reference

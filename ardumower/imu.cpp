@@ -34,7 +34,7 @@ int buffersize = 1000;   //Amount of readings used to average, make it higher to
 int acel_deadzone = 8;   //Acelerometer error allowed, make it lower to get more precision, but sketch may not converge  (default:8)
 int giro_deadzone = 1;   //Giro error allowed, make it lower to get more precision, but sketch may not converge  (default:1)
 
-MPU6050 mpu(0x69);
+MPU6050 mpu(0x68);
 
 boolean blinkState = false;
 float nextTimeLoop;
@@ -109,7 +109,8 @@ void IMUClass::begin() {
   //initialisation of MPU6050
   Console.println(F("--------------------------------- GYRO ACCEL INITIALISATION ---------------"));
   mpu.initialize();
-  Console.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  Console.print(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  Console.print(F(", device ID: "));
   Console.println(mpu.getDeviceID());
   Console.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();
@@ -234,9 +235,9 @@ void IMUClass::calibration() {
     mpu.setXGyroOffset(gx_offset);
     mpu.setYGyroOffset(gy_offset);
     mpu.setZGyroOffset(gz_offset);
-    watchdogReset();
+    ////watchdogReset();
     meansensors();
-    watchdogReset();
+    //watchdogReset();
     Console.print("Wait until accel 3 val are < 8 : ");
     Console.print(abs(mean_ax));
     Console.print(" ");
@@ -279,7 +280,7 @@ void IMUClass::meansensors() {
   while (i < (buffersize + 101)) {  //default buffersize=1000
     // read raw accel/gyro measurements from device
     mpu.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-    watchdogReset();
+    //watchdogReset();
     if (i > 100 && i <= (buffersize + 100)) { //First 100 measures are discarded
       buff_ax = buff_ax + ax;
       buff_ay = buff_ay + ay;
@@ -453,6 +454,11 @@ void IMUClass::loadSaveCalib(boolean readflag) {
   short magic = MAGIC;
   if (readflag) Console.println(F("Load Calibration"));
   else Console.println(F("Save Calibration"));
+    Console.print(F("with magic:"));
+    Console.print(magic);
+    Console.print(F(" at address:"));
+    Console.println(ADDR);
+
   eereadwrite(readflag, addr, magic); // magic
   //accelgyro offset
   eereadwrite(readflag, addr, ax_offset);
@@ -464,6 +470,7 @@ void IMUClass::loadSaveCalib(boolean readflag) {
   //compass offset
   eereadwrite(readflag, addr, comOfs);
   eereadwrite(readflag, addr, comScale);
+  if (!readflag) EEPROM.commit();
   Console.print(F("Calibration address Start = "));
   Console.println(ADDR);
   Console.print(F("Calibration address Stop = "));
@@ -505,7 +512,10 @@ void IMUClass::loadCalib() {
   int addr = ADDR;
   eeread(addr, magic);
   if (magic != MAGIC) {
-    Console.println(F("IMU error: no calib data"));
+    Console.print(F("IMU error: no calib data - magic:"));
+    Console.print(magic);
+    Console.print(F(" at address:"));
+    Console.println(ADDR);
     ax_offset = 376;
     ay_offset = -1768;
     az_offset = 1512;
@@ -529,14 +539,14 @@ void IMUClass::saveCalib() {
 
 
 void IMUClass::deleteCompassCalib() {
-  int addr = ADDR;
+/*  int addr = ADDR;
   eewrite(addr, (short)0); // magic
   comOfs.x = comOfs.y = comOfs.z = 0;
   comScale.x = comScale.y = comScale.z = 2;
-  Console.println("Compass calibration deleted");
+  Console.println("Compass calibration deleted");*/
 }
 void IMUClass::deleteAccelGyroCalib() {
-  int addr = ADDR;
+/*  int addr = ADDR;
   eewrite(addr, (short)0); // magic
   ax_offset = ay_offset = az_offset = 0;
   gx_offset = gy_offset = gz_offset = 0;
@@ -547,7 +557,7 @@ void IMUClass::deleteAccelGyroCalib() {
   mpu.setYGyroOffset(1);//-3
   mpu.setZGyroOffset(1);//-2
 
-  Console.println("AccelGyro calibration deleted ");
+  Console.println("AccelGyro calibration deleted ");*/
 }
 
 
@@ -555,9 +565,9 @@ void IMUClass::deleteAccelGyroCalib() {
 void IMUClass::calibGyro() {
 
   Console.println("Reading sensors for first time... without any offset");
-  watchdogReset();
+  //watchdogReset();
   meansensors();
-  watchdogReset();
+  //watchdogReset();
   Console.print("Reading ax: ");
   Console.print(mean_ax);
   Console.print(" ay: ");
@@ -572,11 +582,11 @@ void IMUClass::calibGyro() {
   Console.println(mean_gz);
 
   Console.println("\nCalculating offsets...");
-  watchdogReset();
+  //watchdogReset();
   calibration();
-  watchdogReset();
+  //watchdogReset();
   meansensors();
-  watchdogReset();
+  //watchdogReset();
   Console.println("FINISHED reading Value with new offset,If all is OK need to be close 0 exept the az close to 16384");
   Console.print(" New reading ax: ");
   Console.print(mean_ax);
@@ -590,7 +600,7 @@ void IMUClass::calibGyro() {
   Console.print(mean_gy);
   Console.print(" gz: ");
   Console.println(mean_gz);
-  watchdogReset();
+  //watchdogReset();
   Console.print("THE NEW OFFSET ax: ");
   Console.print(ax_offset);
   Console.print(" ay: ");
@@ -603,7 +613,7 @@ void IMUClass::calibGyro() {
   Console.print(gy_offset);
   Console.print(" gz: ");
   Console.println(gz_offset);
-  watchdogReset();
+  //watchdogReset();
   saveCalib();
 }
 
@@ -639,7 +649,7 @@ void IMUClass::calibComStartStop() {
     // start
     Console.println(F("com calib..."));
     Console.println(F("rotate sensor 360 degree around all three axis until NO new data are coming"));
-    watchdogReset();
+    //watchdogReset();
     foundNewMinMax = false;
     useComCalibration = false;
     state = IMU_CAL_COM;
@@ -652,7 +662,7 @@ void IMUClass::calibComQMC5883Update() {
   comLast = com;
   delay(20);
   readQMC5883L();
-  watchdogReset();
+  //watchdogReset();
   if (com.x < comMin.x) {
     comMin.x = com.x;
     Console.print("NEW min x: ");
@@ -689,7 +699,7 @@ void IMUClass::calibComUpdate() {
   delay(20);
   readHMC5883L();
  
-  watchdogReset();
+  //watchdogReset();
   boolean newfound = false;
   if ( (abs(com.x - comLast.x) < 10) &&  (abs(com.y - comLast.y) < 10) &&  (abs(com.z - comLast.z) < 10) ) {
 
@@ -719,7 +729,7 @@ void IMUClass::calibComUpdate() {
     }
     if (newfound) {
       foundNewMinMax = true;
-      watchdogReset();
+      //watchdogReset();
       Console.print("x:");
       Console.print(comMin.x);
       Console.print(",");

@@ -37,7 +37,7 @@
 #include "imu.h"
 #include "adcman.h"
 #include "perimeter.h"
-#include "gps.h"
+//#include "gps.h"
 #include "pfod.h"
 #include "RunningMedian.h"
 
@@ -51,7 +51,7 @@
 */
 
 // code version
-#define VER "1.85-Azuritber GY-521"
+#define VER "1.85-Azuritber GY-521 for ESP32"
 
 
 // sensors
@@ -263,7 +263,7 @@ class Robot
     byte mowPatternCurr;
     const char *mowPatternName();
     // -------- gps state -------------------------------
-    GPS gps;
+//    GPS gps;
     boolean gpsUse            ;       // use GPS?
     boolean gpsReady;
     float gpsLat;
@@ -428,6 +428,8 @@ class Robot
     unsigned long nextTimeCheckCurrent;
     unsigned long nextTimeCheckperimeterSpeedCoeff;
     unsigned long lastTimeMotorMowStuck;
+    int leftTopSpeed;
+    int rightTopSpeed;
     int leftSpeed;
     int rightSpeed;
     int PwmLeftSpeed;

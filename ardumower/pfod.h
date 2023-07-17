@@ -41,6 +41,7 @@
 #include "drivers.h"
 #include "pid.h"
 #include "perimeter.h"
+#include "FakeSerial.h"
 
 // pfodApp state
 enum { PFOD_OFF, PFOD_MENU, PFOD_CONSOLE,
@@ -54,7 +55,7 @@ class RemoteControl
   public:
     RemoteControl();
     void setRobot(Robot *aRobot);
-    void initSerial(HardwareSerial* serialPort, uint32_t baudrate);
+    void initSerial(FakeSerialClass* serialPort, uint32_t baudrate);
     boolean readSerial();
     //bb10
     void processPI(String RpiCmd, float v1, float v2, float v3) ;
@@ -62,7 +63,7 @@ class RemoteControl
     byte pfodState;
     
   private:
-    HardwareSerial* serialPort;
+    FakeSerialClass* serialPort;
     Robot *robot;
     boolean pfodCmdComplete;
     String pfodCmd;

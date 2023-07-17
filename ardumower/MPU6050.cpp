@@ -62,6 +62,7 @@ MPU6050::MPU6050(uint8_t address) {
  */
 void MPU6050::initialize() {
     setClockSource(MPU6050_CLOCK_PLL_XGYRO);
+    Serial.println("mpu1");
     //setFullScaleGyroRange(MPU6050_GYRO_FS_250);
     setFullScaleGyroRange(MPU6050_GYRO_FS_2000);
     setFullScaleAccelRange(MPU6050_ACCEL_FS_2);

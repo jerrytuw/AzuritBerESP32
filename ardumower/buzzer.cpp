@@ -1,8 +1,8 @@
 #include "buzzer.h"
 #include "config.h"
 #include <Arduino.h>
-#include "DueTimer.h"
-#define pinBuzzer 53 
+//#include "DueTimer.h"
+//#define pinBuzzer 53 
 BuzzerClass Buzzer;
 
 static boolean tone_pin_state = false;
@@ -20,11 +20,11 @@ void BuzzerClass::begin()
 void BuzzerClass::tone( unsigned int  freq )
 {
   pinMode(pinBuzzer, OUTPUT);
-  Timer1.attachInterrupt(toneHandler).setFrequency(freq).start();
+//xx  Timer1.attachInterrupt(toneHandler).setFrequency(freq).start();
 
 }
 
 void BuzzerClass::noTone() {
-  Timer1.stop();
+//xx  Timer1.stop();
   digitalWrite(pinBuzzer, LOW);
 }

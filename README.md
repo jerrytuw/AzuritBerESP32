@@ -1,3 +1,18 @@
+This repo aims at a crude and messy modification for running the essential ardumower code on a single ESP32.
+
+So far tested:
+ - general running/state control
+ - drive motor control
+ - perimeter (2 channels - 1 center used)
+ - (sonar)
+ - GY-521 IMU
+ - pfod interface
+Not tested:
+ - mow motor
+ - parameter optimizations
+ 
+Based mainly on:
+ 
 # AzuritBer
 Ardumower full odometry version
 see https://www.ardumower.de  and https://wiki.ardumower.de/index.php?title=AzuritBer_Firmware_(English)# for more info.

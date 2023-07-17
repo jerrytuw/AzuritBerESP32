@@ -15,13 +15,15 @@ class PerimeterClass
   public:
     PerimeterClass();
     // set ADC pins
-	  void begin(byte idx0Pin, byte idx1Pin);
+    void begin(byte idx0Pin, byte idx1Pin);
     void changeArea(byte areaInMowing);
     const int8_t* getRawSignalSample(byte idx);
+    int8_t raw_buff[2][255]; // the 8 bit raw buffers
+
     // get perimeter magnitude
-    int getMagnitude(byte idx);    
+    int getMagnitude(byte idx);
     int getSmoothMagnitude(byte idx);
-    // inside perimeter (true) or outside (false)?  
+    // inside perimeter (true) or outside (false)?
     boolean isInside();
     boolean isInside(byte idx);
     // perimeter signal timed out? (e.g. due to broken wire)
@@ -29,24 +31,26 @@ class PerimeterClass
     void resetTimedOut();
     boolean signalTimedOut(byte idx);
     int16_t getSignalMin(byte idx);
-    int16_t getSignalMax(byte idx);    
+    int16_t getSignalMax(byte idx);
     int16_t getSignalAvg(byte idx);
-    float getFilterQuality(byte idx); 
+    float getFilterQuality(byte idx);
+    int getSignalCounter(byte idx);
     void speedTest();
     byte signalCodeNo; // not used yet
     void run();
     int16_t timedOutIfBelowSmag;
     int16_t timeOutSecIfNotInside;
-    // use differential perimeter signal as input for the matched filter? 
+    // use differential perimeter signal as input for the matched filter?
     //boolean useDifferentialPerimeterSignal;
     // swap coil polarity?
-    boolean swapCoilPolarityLeft;  
-    boolean swapCoilPolarityRight; 
-    boolean read2Coil; 
+    boolean swapCoilPolarityLeft;
+    boolean swapCoilPolarityRight;
+    boolean read2Coil;
     unsigned long lastInsideTime[2];
-    char subSample;  	
+    char subSample;
+    int16_t numSamples;
+    void matchedFilter(byte idx);
   private:
-   
     byte idxPin[2]; // channel for idx
     int callCounter;
     int16_t mag [2]; // perimeter magnitude per channel
@@ -54,14 +58,13 @@ class PerimeterClass
     float filterQuality[2];
     int16_t signalMin[2];
     int16_t signalMax[2];
-    int16_t signalAvg[2];    
-    int signalCounter[2];    
+    int16_t signalAvg[2];
+    int signalCounter[2];
     //int8_t rawSignalSample[2][RAW_SIGNAL_SAMPLE_SIZE];
-    void matchedFilter(byte idx);
-    int16_t corrFilter(int8_t *H, int8_t subsample, int16_t M, int8_t *ip, int16_t nPts, float &quality);
+    int16_t corrFilter(byte idx, int8_t *H, int8_t subsample, int16_t M, int8_t *ip, int16_t nPts, float &quality);
     void printADCMinMax(int8_t *samples);
 };
 
-extern PerimeterClass Perimeter;
+//extern PerimeterClass Perimeter;
 
 #endif

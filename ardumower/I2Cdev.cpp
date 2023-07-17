@@ -211,7 +211,8 @@ int8_t I2Cdev::readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8
         Serial.print(length, DEC);
         Serial.print(" bytes from 0x");
         Serial.print(regAddr, HEX);
-        Serial.print("...");
+        Serial.print("... ARDUINO");
+        Serial.println(ARDUINO);
     #endif
 
     int8_t count = 0;
@@ -273,11 +274,11 @@ int8_t I2Cdev::readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8
             // I2C/TWI subsystem uses internal buffer that breaks with large data requests
             // so if user requests more than BUFFER_LENGTH bytes, we have to do it in
             // smaller chunks instead of all at once
-            for (uint8_t k = 0; k < length; k += min(length, BUFFER_LENGTH)) {
+            for (uint8_t k = 0; k < length; k += min((length+0), BUFFER_LENGTH)) {
                 Wire.beginTransmission(devAddr);
                 Wire.write(regAddr);
                 Wire.endTransmission();
-                Wire.beginTransmission(devAddr);
+                //Wire.beginTransmission(devAddr); // must not use again for ESP32
                 Wire.requestFrom(devAddr, (uint8_t)min(length - k, BUFFER_LENGTH));
         
                 for (; Wire.available() && (timeout == 0 || millis() - t1 < timeout); count++) {

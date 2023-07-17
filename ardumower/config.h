@@ -1,3 +1,11 @@
+//*** defines for compatibility
+
+#define RAW_SIGNAL_SAMPLE_SIZE 32
+
+#define IDX_LEFT   0
+#define IDX_CENTER 0
+#define IDX_RIGHT  1
+//***
 
 // ------ choose ONLY ONE robot configuration ---------------------------------------------
 #define USE_MOWER

@@ -1,11 +1,250 @@
-// NOTE: requires Arduino Due
-#include <chip.h>
+/*  ESP32 ADC1 I2S _alternating_ channel DMA sampler for Ardumower compatible border signal (2 signals).
+   For testing it can generate a synchronous BASEFREQ square wave on PWMPIN and a 1/4 square wave on PWMPIN2.
+
+   It fetches 12bit NUMSAMPLES from 2 perimeter channels in the background to DMA buffer, then these get copied to foreground.
+   Note: To minimise channel switching artefacts 2 extra samples are taken which then are discarded.
+   In result buffer, the top 4 bits are the channel number.
+   Additionally, 4 more ADC1 channels are read "normally" in as single values e.g. for current measurements.
+   Note: The ESP32 ADC DMA is a bit strange on top of I2S interface with lots of artefacts...
+   This sketch does work with ESP32 Arduino core 2.09 !!!
+   Includes WIFI and telnet server.
+*/
+
 #include <Arduino.h>
+#include <stdio.h>
+#include <string.h>
+#include "esp_event.h"
+#include "esp_log.h"
+#include "driver/ledc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/i2s.h"
+#include "driver/adc.h"
+#include "driver/dac.h"
+#include "soc/syscon_reg.h"
+#include "soc/syscon_struct.h"
+#include "esp_adc_cal.h"
+#include "esp_log.h"
+#include "robot.h"
 #include <limits.h>
 #include "adcman.h"
 #include "config.h"
 #include "buzzer.h"
 #include "flashmem.h"
+
+#define telnetDebug(x) telnet.println(x)
+			   
+// start includes
+// WIFI
+
+#define PWMPIN 18 // for test signal
+#define PWMPIN2 25 // for test signal
+#define BASEFREQ (9615) // base signal frequency
+#define ADCFREQ (BASEFREQ*4) // 4*oversampling
+
+#define I2S_NUM I2S_NUM_0 // I2S channel to use
+#define NUMSAMPLES (192) // 4 times oversampling of 2 24 bit signals
+#define SHOWSAMPLES (192) // how much to show in plotter interface
+
+#define firstChannel ADC1_CHANNEL_0 // ADC input for channel 0: 4=GPIO32(PWMfast), 5=GPIO33(free), 0=GPIO36(per), 3=GPIO39(per), 6=GPIO34(cur), 7=GPIO35(PWMslow)
+#define secondChannel ADC1_CHANNEL_3 // ADC input for channel 1 
+
+adc1_channel_t  ADC = firstChannel;
+adc1_channel_t  ADC1 = secondChannel;
+
+//#define DEBUGSIGNAL // if we want a debug PWM signal
+
+int chanFlag = 0; // auto toggle perimeter channel to scan
+volatile int leftCurVal = 555;
+volatile int rightCurVal = 666;
+volatile int supplyVal = 777;
+volatile int x = 888;
+
+extern Mower robot; 
+
+static uint16_t i2s_raw_buff[NUMSAMPLES + 2]; // our 12 bit work buffer
+int16_t ofs[2] = {2048, 2048}; // ADC zero offsets - after 5k6/10k divider and dynamically adapted
+int16_t ADCMin[2]; // ADC min sample values
+int16_t ADCMax[2]; // ADC max sample values
+int16_t ADCAvg[2]; // ADC avg sample values
+int16_t center0, center1;
+extern int8_t sigcode_diff[]; // the signal sent by perimeter sender
+
+static unsigned long volatile msstart, msend;
+static int64_t volatile end_time, start_time;
+
+unsigned long nextPeri, nextPeriShow;
+unsigned long nextLoopTime = 3000;
+
+bool doShow = false;
+bool plot = false;
+
+static esp_adc_cal_characteristics_t adc1_chars;
+
+static float calibrate_adc(uint8_t chan, uint16_t value) // to optionally correct for ESP32 ADC flaws
+{
+  // y = ax + b
+  return 0.0008100147275 * value + 0.1519145803;
+}
+
+void i2s_adc_init() // set up ADC DMA
+{
+  // the basic I2S aDC configuration
+  i2s_config_t i2s_config;
+  i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN);
+  i2s_config.sample_rate = ADCFREQ;
+  i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT; // 16bit to get 2*dma_buf_len.
+  i2s_config.channel_format = I2S_CHANNEL_FMT_ONLY_LEFT;
+  i2s_config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+  i2s_config.dma_buf_count = 2; // dma_desc_num. Min 2, Max 128.
+  i2s_config.dma_buf_len = 192 + 2; // dma_frame_num. Min 8, Max 1024. Size * 2, in i2s.c
+  i2s_config.use_apll = false;           // Can't be used with internal ADC.
+  i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
+  i2s_config.fixed_mclk = 0; // fi2s_clk can be set manually, but i2s calculations will screw it anyway.
+  i2s_config.tx_desc_auto_clear = false;
+
+  Serial.printf("Attempting to setup I2S ADC with sampling frequency %d Hz\n", ADCFREQ);
+  if (ESP_OK != i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL)) {
+    Serial.printf("Error installing I2S. Halt!");
+    while (1);
+  }
+  if (ESP_OK != i2s_set_adc_mode(ADC_UNIT_1, ADC1_CHANNEL_0)) {
+    Serial.printf("Error setting up ADC. Halt!");
+    while (1);
+  }
+  if (ESP_OK != adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_DB_11)) {
+    Serial.printf("Error setting up ADC attenuation. Halt!");
+    while (1);
+  }
+  adc1_config_channel_atten(ADC1_CHANNEL_5, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_4, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_6, ADC_ATTEN_DB_11);
+  adc1_config_channel_atten(ADC1_CHANNEL_3, ADC_ATTEN_DB_11);
+
+  if (ESP_OK != i2s_adc_enable(I2S_NUM_0)) {
+    Serial.printf("Error enabling ADC. Halt!");
+    while (1);
+  }
+  Serial.printf("ESP32 I2S DMA ADC setup ok\n");
+  // delay for I2S bug workaround
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+
+size_t i2s_run(int chan) // chan: which channel to read, prepare next
+{
+  size_t bytes_read = 0; // how much we got from DMA into i2s_raw_buff
+  //memset(i2s_raw_buff,0x55,(NUMSAMPLES + 2) * 2);
+
+  ESP_ERROR_CHECK(i2s_read(I2S_NUM_0, (void *)i2s_raw_buff, (NUMSAMPLES + 2) * 2, &bytes_read, portMAX_DELAY)); //(needs ca. 4ms)
+  if (bytes_read != (NUMSAMPLES + 2) * 2)
+  {
+    Serial.printf("===== Sample count error ==================\n\n\n");
+    while (1);
+  }
+  i2s_adc_disable(I2S_NUM_0);
+  i2s_zero_dma_buffer(I2S_NUM_0);
+  leftCurVal = adc1_get_raw(ADC1_CHANNEL_6); // curl
+  rightCurVal = adc1_get_raw(ADC1_CHANNEL_7); // curr
+  supplyVal = adc1_get_raw(ADC1_CHANNEL_4); // volt
+  x = adc1_get_raw(ADC1_CHANNEL_5);
+
+  if (chan & 1)
+  {
+    if (ESP_OK != i2s_set_adc_mode(ADC_UNIT_1, ADC)) {
+      Serial.printf("Error setting up ADC. Halt!");
+      while (1);
+    }
+  }
+  else
+  {
+    if (ESP_OK != i2s_set_adc_mode(ADC_UNIT_1, ADC1)) {
+      Serial.printf("Error setting up ADC. Halt!");
+      while (1);
+    }
+  }
+  if (ESP_OK != i2s_adc_enable(I2S_NUM_0)) {
+    Serial.printf("Error enabling ADC. Halt!");
+    while (1);
+  }
+  return bytes_read;
+}
+
+//set up PWM output for debugging
+void ledc_init(void)
+{
+  ledcSetup(3, BASEFREQ, 8); // PWM, 8-bit resolution
+  ledcAttachPin(PWMPIN, 3);
+  ledcWriteTone(3, BASEFREQ);
+
+  ledcSetup(4, BASEFREQ / 4, 8); // PWM, 8-bit resolution
+  ledcAttachPin(PWMPIN2, 4);
+  ledcWriteTone(4, BASEFREQ / 4);
+						  
+											   
+									
+							
+							
+								  
+}
+
+// generate a 8bit perimeter raw buffer with min/max from 12 bit samples
+void postProcess2(int sample)
+{
+  extern int8_t sigcode_diff[]; // the template signal
+  float avg = 0;
+  int j = 0;
+
+  ADCMax[sample] = -9999;
+  ADCMin[sample] = 9999;
+								   
+ 
+
+  for (int i = 0; i < robot.perimeter.numSamples; i ++)
+    i2s_raw_buff[i] = ~i2s_raw_buff[i]; // dma sampled data is inverted
+
+  for (int i = 0; i < robot.perimeter.numSamples; i += 2) // copy over 12 bit DMA data to 8 bit raw buffers
+  {
+    int16_t value0, value1; // we need to swap samples and skip first extra samples - values are negated
+    value0 = (min(SCHAR_MAX,  max(SCHAR_MIN, ((int16_t)(i2s_raw_buff[i + 2] & 0xfff) - ofs[sample] + 16) >> 4)));
+    value1 = (min(SCHAR_MAX,  max(SCHAR_MIN, ((int16_t)(i2s_raw_buff[i + 2 + 1] & 0xfff) - ofs[sample] + 16) >> 4)));
+
+    robot.perimeter.raw_buff[sample][j++] = value1;
+    robot.perimeter.raw_buff[sample][j++] = value0;
+							  
+ 
+
+    /*robot.perimeter.raw_buff[1][j - 2] = value1 / 64;
+      robot.perimeter.raw_buff[1][j - 1] = value0 / 64;*/
+								  
+ 
+
+    ADCMax[sample] = max(ADCMax[sample], value0);
+    ADCMin[sample] = min(ADCMin[sample], value0);
+    ADCMax[sample] = max(ADCMax[sample], value1);
+    ADCMin[sample] = min(ADCMin[sample], value1);
+    avg += ((float)value0) / ((float)robot.perimeter.numSamples);
+    avg += ((float)value1) / ((float)robot.perimeter.numSamples);
+  }
+
+  center0 = ADCMin[sample] + (ADCMax[sample] - ADCMin[sample]) / 2.0;
+  ADCAvg[sample] = avg;
+  //printf("AVG:%d, %d, %d, %d, %d, %d\n", ADCAvg[0], 0, center0, 0, 0, 0);
+  ofs[sample] += (ADCAvg[sample] * 16); // auto-correct offset
+}
+
+void adcsetup(void)
+{
+  esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);
+#ifdef DEBUGSIGNAL
+  ledc_init();
+  // alternatively ouput a fixed value for debugging
+  //dac_output_enable(DAC_CHANNEL_1);
+  //dac_output_voltage(DAC_CHANNEL_1, 100);
+#endif
+  i2s_adc_init();
+  //printf("Initialization finished, output on pin %d\n", PWMPIN);
+}
 
 #define ADDR 0
 #define MAGIC 1
@@ -33,47 +272,8 @@ ADCManager::ADCManager(){
 }
 
 
-void ADCManager::begin(){    
-  /*pinMode(A0, INPUT);
-    while(true){
-      Console.println(analogRead(A0));
-    }
-  */
-  // free running ADC mode, f = ( adclock / 21 cycles per conversion )
-  // example f = 19231  Hz:  using ADCCLK=405797 will result in a adcclock=403846 (due to adc_init internal conversion)
-  uint32_t adcclk;
-  switch (sampleRate){
-    case SRATE_38462: adcclk = 811595; break;
-    case SRATE_19231: adcclk = 405797; break;
-    case SRATE_9615 : adcclk = 202898; break;
-  }  
-  pmc_enable_periph_clk (ID_ADC); // To use peripheral, we must enable clock distributon to it
-  adc_init(ADC, SystemCoreClock, adcclk, ADC_STARTUP_FAST); // startup=768 clocks
-  adc_disable_interrupt(ADC, 0xFFFFFFFF);
-  adc_set_resolution (ADC, ADC_12_BITS);  
-  adc_configure_power_save (ADC, ADC_MR_SLEEP_NORMAL, ADC_MR_FWUP_OFF); // Disable sleep
-  adc_configure_timing(ADC, 0, ADC_SETTLING_TIME_3, 1);  // tracking=0, settling=17, transfer=1      
-  adc_set_bias_current (ADC, 1); // Bias current - maximum performance over current consumption
-  adc_disable_tag (ADC);  // it has to do with sequencer, not using it 
-  adc_disable_ts (ADC);   // disable temperature sensor 
-  adc_stop_sequencer (ADC);  // not using it
-  adc_disable_all_channel (ADC);
-  adc_configure_trigger(ADC, ADC_TRIG_SW, 1); // triggering from software, freerunning mode      
-  adc_start( ADC );  
-  
- /* // test conversion
-  setupChannel(A0, 1, false);  
-  setupChannel(A1, 3, false);    
-  while(true){    
-    Console.print("test A0=");
-    Console.print(getVoltage(A0));
-    Console.print("  A1=");
-    Console.println(getVoltage(A1));    
-    Console.print("  cnvs=");
-    Console.println(getConvCounter());    
-    run();
-    delay(500);        
-  }*/  
+void ADCManager::begin(){ 
+adcsetup();   
 }
 
 void ADCManager::printInfo(){
@@ -146,9 +346,11 @@ int ADCManager::getSampleCount(byte pin){
 }
 
 uint16_t ADCManager::getValue(byte pin){  //return integer 0 to 4096 12 bit ADC
-  byte ch = pin-A0;  
+  /*byte ch = pin-A0;  
   channels[ch].convComplete = false;
-  return channels[ch].value;  
+  return channels[ch].value;*/
+  if(pin==pinMotorRightSense) return rightCurVal;
+  if(pin==pinMotorLeftSense) return leftCurVal;
 }
 
 float ADCManager::getVoltage(byte pin){
@@ -159,37 +361,92 @@ float ADCManager::getVoltage(byte pin){
 }
 
 void ADCManager::init(byte ch){
-  //adc_disable_channel_differential_input(ADC, (adc_channel_num_t)g_APinDescription[ channels[ch].pin ].ulADCChannelNumber );
-  // configure Peripheral DMA  
-  adc_enable_channel( ADC, (adc_channel_num_t)g_APinDescription[ channels[ch].pin ].ulADCChannelNumber  );   
-  delayMicroseconds(100);  
-  PDC_ADC->PERIPH_RPR = (uint32_t) dmaData; // address of buffer
-  PDC_ADC->PERIPH_RCR = channels[ch].sampleCount;
-  PDC_ADC->PERIPH_PTCR = PERIPH_PTCR_RXTEN; // enable receive      
+
 }
 
 // start another conversion
 void ADCManager::run(){
-  if ((adc_get_status(ADC) & ADC_ISR_ENDRX) == 0) return; // conversion busy
-  // post-process sampling data
-  if (chCurr != INVALID_CHANNEL){
-    adc_disable_channel( ADC, (adc_channel_num_t)g_APinDescription[ channels[chCurr].pin ].ulADCChannelNumber  );   
-    postProcess(chCurr);
-    channels[chCurr].convComplete = true;
-    chCurr = INVALID_CHANNEL;
-    convCounter++;
-  } 
-  // start next channel sampling    
-  for (int i=0; i < ADC_CHANNEL_COUNT_MAX; i++){
-    chNext++;
-    if (chNext == ADC_CHANNEL_COUNT_MAX) chNext = 0;
-    if (channels[chNext].sampleCount != 0){
-      if (!channels[chNext].convComplete){
-        chCurr = chNext;
-        init(chCurr);               
-        break;
+   extern int16_t sumx[2][255];
+   extern int16_t posmin[2];
+   extern int16_t posmax[2];
+  if (millis() > nextPeri)
+  {
+    nextPeri = millis() + nextLoopTime;
+    msend = millis() - msstart;
+    msstart = millis();
+    start_time = esp_timer_get_time();
+    i2s_run(chanFlag & 1); // start DMA acquisition and copy perimeter data, also read 4 more ADC channels
+    postProcess2(chanFlag & 1); // convert to 8bit raw data (needs little time ca. 0.1ms)
+    robot.perimeter.matchedFilter(chanFlag & 1); // correlate with signal template on channel 0 (needs ca. 1ms)
+    end_time = esp_timer_get_time() - start_time;
+
+    if (doShow) // for full plotting
+    {
+      nextLoopTime = 3000;
+      if (plot)
+      {
+        //if (millis() > nextPeriShow)
+        {
+          nextPeriShow = millis() + 2950;
+          for (int i = 0; i < 10; i++)
+          {
+            if (chanFlag & 1) printf("0,10000.,0,0,0,-10000.\n"); // mark begin and scale plot range
+            else printf("0,8000.,0,0,0,-8000.\n");
+          }
+          int j = 200;
+          float k = 127.*2. / (ADCMax[chanFlag & 1] - ADCMin[chanFlag & 1]);
+          if ((ADCMax[chanFlag & 1] == ADCMin[chanFlag & 1])) k = 1.;
+          k = 25.;
+
+          //printf("k=%f\n",k);
+
+          for (int i = 0; i < SHOWSAMPLES; i++) // only show first SHOWSAMPLES
+          {
+            if ((j == 200) && (i == posmax[chanFlag & 1]))
+            {
+              /*if (chanFlag == 0)*/ j = 0;
+            }
+            printf("raw0:%f,sig:%f,ins0:%f,smag0:%f,mag0:%f,qual0:%f\n",
+                   constrain(4000.*(k * 3. * (robot.perimeter.raw_buff[chanFlag & 1][i])  / 255.), - 4000, 4000),
+                   4000.*(j < 24 * 4 ? 1.*sigcode_diff[(j >> 2)] : 0.),
+                   robot.perimeter.isInside(chanFlag & 1) ? 6200. : -6200.,
+                   //4000.*(1. * sumx[0][i] / 128.),
+                   //(i == posmax[chanFlag&1]) ? 4000 * 2.3 : (i == posmin[chanFlag&1]) ? -4000 * 2.3 : 0./*(.3 * sumx[1][i] / 255.)*/,
+                   20.*robot.perimeter.getSmoothMagnitude(chanFlag & 1),
+                   10.*robot.perimeter.getMagnitude(chanFlag & 1),
+                   1000.*robot.perimeter.getFilterQuality(chanFlag & 1));
+
+            if (j < 24 * 4) j++;
+          }
+          for (int i = 0; i < 10; i++)
+            printf("0,-0.5,0,0,0,0\n");
+
+          printf("0,-5000,0,0,0,0\n");
+
+          for (int i = 0; i < 10; i++)
+            printf("0,0,0,0,0,0\n");
+        }
       }
     }
+    else // just plot result
+    {
+      nextLoopTime = 50;
+      if (plot)
+      {
+        printf("sigcnt0:%f,tim:%f,ins0:%f,smag0:%f,mag0:%f,qual0:%f\n",
+               100.*robot.perimeter.getSignalCounter(0),
+               constrain((float)(1.*end_time), 0, 10000),
+               robot.perimeter.isInside(0) ? 620. : -620.,
+               constrain(10.*robot.perimeter.getSmoothMagnitude(0), -6100, 6100),
+               constrain(10.*robot.perimeter.getMagnitude(0), -6100, 6100),
+               1000.*robot.perimeter.getFilterQuality(0));
+        //      printf("%f\n", 1.*end_time);
+      }
+    }
+    ////chanFlag++; // toggle channel - except simple single perimeter coil
+    //dacWrite(PWMPIN, chanFlag&0xff);       // PWM
+    //dacWrite(PWMPIN2, chanFlag&0xf0);       // PWM
+
   }
 }
 
@@ -230,7 +487,7 @@ void ADCManager::postProcess(byte ch){
   for (int i=0; i < channels[ch].sampleCount; i++){
     uint16_t value = dmaData[i];
     value -= channels[ch].zeroOfs;
-    channels[ch].samples[i] = min(SCHAR_MAX,  max(SCHAR_MIN, ((int8_t) (value >> (ADC_BITS-8))) )); // convert to 8 bits
+    channels[ch].samples[i] = min(SCHAR_MAX,  max(SCHAR_MIN, ((int8_t) (value >> (ADC_BITS-8)))+0 )); // convert to 8 bits
   }
   //Console.print(" val");
   //Console.println(channels[ch].value);
