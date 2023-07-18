@@ -2,7 +2,7 @@ This repo aims at a crude and messy modification for running the essential ardum
 
 So far tested:
  - general running/state control
- - drive motor control
+ - drive motor control for 2 hoverboard motors on ZS-X11H (note: stop input just pulls 0-5V low)
  - perimeter (2 channels - 1 center used)
  - (sonar)
  - GY-521 IMU
