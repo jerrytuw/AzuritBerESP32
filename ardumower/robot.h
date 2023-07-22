@@ -51,7 +51,7 @@
 */
 
 // code version
-#define VER "1.85-Azuritber GY-521 for ESP32"
+#define VER "1.85-Azuritber GY-521 for ESP32" // note: also GY-87 works but address collides with RTC
 
 
 // sensors

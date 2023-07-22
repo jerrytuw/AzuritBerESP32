@@ -1,13 +1,16 @@
-/*  ESP32 ADC1 I2S _alternating_ channel DMA sampler for Ardumower compatible border signal (2 signals).
+/* ADCman modified for ESP32 ADC1 I2S _alternating_ channel DMA sampler for Ardumower compatible border signal (2 signals).
+   Many unused remainders...
    For testing it can generate a synchronous BASEFREQ square wave on PWMPIN and a 1/4 square wave on PWMPIN2.
 
-   It fetches 12bit NUMSAMPLES from 2 perimeter channels in the background to DMA buffer, then these get copied to foreground.
+   It fetches 12bit NUMSAMPLES from 2 perimeter channels in the background to DMA buffer from ADC1, 
+   then these get copied to a foreground array to be processed by Perimeter code.
    Note: To minimise channel switching artefacts 2 extra samples are taken which then are discarded.
-   In result buffer, the top 4 bits are the channel number.
-   Additionally, 4 more ADC1 channels are read "normally" in as single values e.g. for current measurements.
+   In result buffer, the top 4 bits are the channel number, data is 12 bits.
+   Additionally, 4 more ADC1 channels are read in "normally" as single values e.g. for current measurements.
    Note: The ESP32 ADC DMA is a bit strange on top of I2S interface with lots of artefacts...
    This sketch does work with ESP32 Arduino core 2.09 !!!
-   Includes WIFI and telnet server.
+
+   Note: we could also use the adc_continuous mode supported by all ESP32s... but needs IDF 5.
 */
 
 #include <Arduino.h>
@@ -31,11 +34,6 @@
 #include "config.h"
 #include "buzzer.h"
 #include "flashmem.h"
-
-#define telnetDebug(x) telnet.println(x)
-			   
-// start includes
-// WIFI
 
 #define PWMPIN 18 // for test signal
 #define PWMPIN2 25 // for test signal
@@ -87,6 +85,7 @@ static float calibrate_adc(uint8_t chan, uint16_t value) // to optionally correc
   return 0.0008100147275 * value + 0.1519145803;
 }
 
+/* initialice I2S ADC DMA */
 void i2s_adc_init() // set up ADC DMA
 {
   // the basic I2S aDC configuration
@@ -131,6 +130,7 @@ void i2s_adc_init() // set up ADC DMA
   vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
+/* get data from DMA buffer and from input pins */
 size_t i2s_run(int chan) // chan: which channel to read, prepare next
 {
   size_t bytes_read = 0; // how much we got from DMA into i2s_raw_buff
@@ -170,7 +170,7 @@ size_t i2s_run(int chan) // chan: which channel to read, prepare next
   return bytes_read;
 }
 
-//set up PWM output for debugging
+//set up optional PWM output for debugging
 void ledc_init(void)
 {
   ledcSetup(3, BASEFREQ, 8); // PWM, 8-bit resolution
@@ -179,13 +179,7 @@ void ledc_init(void)
 
   ledcSetup(4, BASEFREQ / 4, 8); // PWM, 8-bit resolution
   ledcAttachPin(PWMPIN2, 4);
-  ledcWriteTone(4, BASEFREQ / 4);
-						  
-											   
-									
-							
-							
-								  
+  ledcWriteTone(4, BASEFREQ / 4);					  
 }
 
 // generate a 8bit perimeter raw buffer with min/max from 12 bit samples
@@ -198,8 +192,6 @@ void postProcess2(int sample)
   ADCMax[sample] = -9999;
   ADCMin[sample] = 9999;
 								   
- 
-
   for (int i = 0; i < robot.perimeter.numSamples; i ++)
     i2s_raw_buff[i] = ~i2s_raw_buff[i]; // dma sampled data is inverted
 
@@ -211,13 +203,9 @@ void postProcess2(int sample)
 
     robot.perimeter.raw_buff[sample][j++] = value1;
     robot.perimeter.raw_buff[sample][j++] = value0;
-							  
  
-
     /*robot.perimeter.raw_buff[1][j - 2] = value1 / 64;
       robot.perimeter.raw_buff[1][j - 1] = value0 / 64;*/
-								  
- 
 
     ADCMax[sample] = max(ADCMax[sample], value0);
     ADCMin[sample] = min(ADCMin[sample], value0);
@@ -233,6 +221,7 @@ void postProcess2(int sample)
   ofs[sample] += (ADCAvg[sample] * 16); // auto-correct offset
 }
 
+/* the ESP32 ADC setup */
 void adcsetup(void)
 {
   esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, (adc_bits_width_t)ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);

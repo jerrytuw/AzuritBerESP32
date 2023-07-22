@@ -5,7 +5,7 @@ So far tested:
  - drive motor control for 2 hoverboard motors on ZS-X11H (note: stop input just pulls 0-5V low)
  - perimeter (2 channels - 1 center used)
  - (sonar)
- - GY-521 IMU
+ - GY-521 IMU - actually GY-87
  - pfod interface
 Not tested:
  - mow motor
@@ -33,4 +33,3 @@ GY87 version use a GY87 IMU connected on I2C1 to avoid i2c adress conflit with R
 
 RL1000 version is the code for robomow rl model platform.
 	The 3 big mow motor use 3 BTS7960 motor driver and 3 INA226 with R010 instead R100 to manage motor sense over I2C
-

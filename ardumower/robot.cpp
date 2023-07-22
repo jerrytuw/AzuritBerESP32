@@ -1316,13 +1316,13 @@ void Robot::resetErrorCounters() {
 
 void Robot::resetMotorFault() {
   if (digitalRead(pinMotorLeftFault) == LOW) {
-    digitalWrite(pinMotorEnable, LOW);
-    digitalWrite(pinMotorEnable, HIGH);
+    digitalWrite(pinMotorLeftEnable, LOW);
+    digitalWrite(pinMotorLeftEnable, HIGH);
     ShowMessageln(F("Reset motor left fault"));
   }
   if  (digitalRead(pinMotorRightFault) == LOW) {
-    digitalWrite(pinMotorEnable, LOW);
-    digitalWrite(pinMotorEnable, HIGH);
+    digitalWrite(pinMotorRightEnable, LOW);
+    digitalWrite(pinMotorRightEnable, HIGH);
     ShowMessageln(F("Reset motor right fault"));
   }
   if (digitalRead(pinMotorMowFault) == LOW) {
@@ -1526,7 +1526,7 @@ void Robot::OdoRampCompute() { //execute only one time when a new state executio
   //Compute the estimate duration of the state so can force next state if the mower is stuck
   //bber400
   //motorSpeedRpmMedian.clear();
-
+  //Note: hoverboard motors have very different characteristics than gear motors, no stop moment
 
   stateStartOdometryLeft = odometryLeft;
   stateStartOdometryRight = odometryRight;
@@ -1546,14 +1546,27 @@ void Robot::OdoRampCompute() { //execute only one time when a new state executio
   distToMoveRight = abs(stateStartOdometryRight - stateEndOdometryRight);
   //left wheel
   if (distToMoveLeft > 2 * odometryTicksPerRevolution)  {
-    ShowMessage("ramp ");
+    /*ShowMessage("lramp ?");
+    ShowMessage(UseAccelLeft);
+    ShowMessage(" from ");
+    ShowMessage(motorLeftPWMCurr);
+    ShowMessage(" to ");
     ShowMessage(leftSpeed);
-    ShowMessage(" ");
-    ShowMessageln(PwmLeftSpeed);
+    ShowMessage(" max ");
+    ShowMessageln(PwmLeftSpeed);*/
     OdoStartBrakeLeft =  odometryTicksPerRevolution/* / 2*/; //si plus d'1 tour on freine dans la moitie du dernier tour
     SpeedOdoMaxLeft = PwmLeftSpeed; //valeur de vitesse max en fonction de la distance a parcourir
   }
   else {  // si moins d 1 tour
+    /*ShowMessage("sramp ?");
+    ShowMessage(UseAccelLeft);
+    ShowMessage(" from ");
+    ShowMessage(motorLeftPWMCurr);
+    ShowMessage(" to ");
+    ShowMessage(leftSpeed);
+    ShowMessage(" max ");
+    ShowMessageln(PwmLeftSpeed);*/
+
     if (UseAccelLeft && UseBrakeLeft) { //need 2 ramp
       OdoStartBrakeLeft = distToMoveLeft / 2; //on freine a la moitie de la distance a parcourir
       if (PwmLeftSpeed <= 0) {
@@ -1684,6 +1697,7 @@ void Robot::motorControlOdo() {
 
   // call to reach a ODO cible on left AND right wheel so they don't stop at the same time accel and slow are used to smooth the movement of the mower
   //Stop motor independently when the cible is reach
+  //Note: hoverboard motors have very different characteristics than gear motors, no stop moment
   //
   if (UseBrakeLeft && (motorLeftSpeedRpmSet >= 0) && (stateEndOdometryLeft - odometryLeft <= 1)) {//Forward left need -10 because when stop the ticks can move in+ or- so do not stop before
     moveLeftFinish = true;
@@ -1853,7 +1867,6 @@ void Robot::motorControlOdo() {
         //bber400 //adjust RPM speed
         //PID version
 
-
         motorRightPID.x = motorRightRpmCurr;
         motorRightPID.w = motorSpeedMaxRpm;
         motorRightPID.y_min = -motorSpeedMaxPwm;
@@ -1865,7 +1878,6 @@ void Robot::motorControlOdo() {
         if (motorRpmCoeff < 0.50) motorRpmCoeff = 0.50;
         if (motorRpmCoeff > 2.00) motorRpmCoeff = 2.00;
 
-
       }
 
       if ((sonarSpeedCoeff != 1) || (!autoAdjustSlopeSpeed)) { //do not change speed if sonar is activate
@@ -1874,9 +1886,6 @@ void Robot::motorControlOdo() {
 
       rightSpeed = motorRpmCoeff * (rightSpeed + imuDirPID.y / 2);
       leftSpeed =  motorRpmCoeff * (leftSpeed - imuDirPID.y / 2);
-
-
-
 
       //not use ??------------------------------------------------------------try to find the yaw with the odometry-------------------------------------
       if (((millis() - stateStartTime) > 2000) && (millis() >= nextTimePidCompute)) { //compute  the yaw with the odometry only after 2 sec
@@ -1982,7 +1991,6 @@ void Robot::motorControlOdo() {
     if (leftSpeed > 255) leftSpeed = 255;
     if (rightSpeed < 0) rightSpeed = 0;
     if (leftSpeed < 0) leftSpeed = 0;
-
   }
 
   if (stateCurr != STATE_OFF) {
@@ -3017,7 +3025,7 @@ void Robot::readSensors() {
   if (millis() >= nextTimeMotorSense) {
     nextTimeMotorSense = millis() +  50;
     double accel = 0.05;
-    motorRightSenseADC = readSensor(SEN_MOTOR_RIGHT) ; //return the ADC value,for MC33926 0.525V/1A so ADC=651/1Amp
+    motorRightSenseADC = readSensor(SEN_MOTOR_RIGHT) ; //return the ADC value,for ZSX11H 0.525V/1A so ADC=651/1Amp
     motorLeftSenseADC = readSensor(SEN_MOTOR_LEFT) ;
     motorMowSenseADC = readSensor(SEN_MOTOR_MOW) ;
     //  double batvolt = batFactor*readSensor(SEN_BAT_VOLTAGE)*3.3/4096 ;
@@ -3050,7 +3058,7 @@ void Robot::readSensors() {
     */
   }
 
-/* skip perimeter check
+/* skip perimeter check for testing */
   if ((stateCurr != STATE_STATION) && (stateCurr != STATE_STATION_CHARGING) && (perimeterUse) && (millis() >= nextTimePerimeter)) {
     nextTimePerimeter = millis() +  15;
     if (perimeter.read2Coil) {
@@ -3103,7 +3111,7 @@ void Robot::readSensors() {
       }
     }
   }
-*/
+/**/
 
   if ((lawnSensorUse) && (millis() >= nextTimeLawnSensor)) {
     nextTimeLawnSensor = millis() + 100;
@@ -3265,8 +3273,8 @@ void Robot::setNextState(byte stateNew, byte dir) {
         //if (RaspberryPIUse) MyRpi.SendStatusToPi();
       }
 
-      UseAccelRight = 0;
-      UseAccelLeft = 0;
+      UseAccelRight = (abs(motorRightPWMCurr) < 20)?0:1;
+      UseAccelLeft = (abs(motorLeftPWMCurr) < 20)?0:1;
       UseBrakeLeft = 0;
       UseBrakeRight = 0;
       motorRightSpeedRpmSet = motorSpeedMaxRpm ;
@@ -3279,7 +3287,11 @@ void Robot::setNextState(byte stateNew, byte dir) {
         stateEndOdometryRight = odometryRight + (int)(odometryTicksPerCm * actualLenghtByLane * 100); //limit the lenght
         stateEndOdometryLeft = odometryLeft + (int)(odometryTicksPerCm * actualLenghtByLane * 100);
       }
-
+      /*ShowMessage(" - fwd togo: ");
+      ShowMessageln(actualLenghtByLane);
+      ShowMessage(" ");
+      ShowMessageln(stateEndOdometryRight-odometryRight);*/
+      
       OdoRampCompute();
 
       statsMowTimeTotalStart = true;
@@ -6800,7 +6812,6 @@ void Robot::loop()  {
       if ((moveRightFinish) && (moveLeftFinish)) {
         if ((motorLeftPWMCurr == 0 ) && (motorRightPWMCurr == 0 )) {
           setNextState(STATE_PERI_OUT_LANE_ROLL2, rollDir);
-
         }
       }
       if (millis() > (stateStartTime + MaxOdoStateDuration)) {
@@ -6826,7 +6837,6 @@ void Robot::loop()  {
           }
         }
       }
-
       else
       {
         if ((moveRightFinish) && (moveLeftFinish))
@@ -7056,7 +7066,7 @@ void Robot::loop()  {
         motorRightPID.reset();
         motorLeftPID.reset();
         setNextState(STATE_FORWARD_ODO, rollDir);
-        ShowMessageln(rightSpeed);
+        //ShowMessageln(rightSpeed);
       }
 
       break;

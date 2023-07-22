@@ -1085,7 +1085,7 @@ void RemoteControl::sendOdometryMenu(boolean update) {
   serialPort->print(robot->odometryLeft);
   serialPort->print(", ");
   serialPort->println(robot->odometryRight);
-  sendSlider("l04", F("Ticks per one full revolution"), robot->odometryTicksPerRevolution, "", 1, 2800, 500);
+  sendSlider("l04", F("Ticks per one full revolution"), robot->odometryTicksPerRevolution, "", 1, 2800, 50);
   sendSlider("l03", F("Ticks per cm"), robot->odometryTicksPerCm, "", 0.1, 60, 10);
   sendSlider("l02", F("Wheel base cm"), robot->odometryWheelBaseCm, "", 0.1, 50, 5);
   serialPort->println("}");
@@ -1399,8 +1399,9 @@ void RemoteControl::sendCommandMenu(boolean update) {
   sendOnOff(robot->userSwitch1);
   serialPort->print(F("|r2~User switch 2 is "));
   sendOnOff(robot->userSwitch2);
-  serialPort->print(F("|r3~User switch 3 is "));
-  sendOnOff(robot->userSwitch3);
+  serialPort->print(F("|r3~Restart"));
+  //serialPort->print(F("|r3~User switch 3 is "));
+  //sendOnOff(robot->userSwitch3);
   serialPort->print("}");
   serialPort->println();
 }
@@ -1529,8 +1530,9 @@ void RemoteControl::processCommandMenu(String pfodCmd) {
     robot->setUserSwitches();
     sendCommandMenu(true);
   } else if (pfodCmd == "r3") {
-    robot->userSwitch3 = !robot->userSwitch3;
-    robot->setUserSwitches();
+    //robot->userSwitch3 = !robot->userSwitch3;
+    //robot->setUserSwitches();
+    ESP.restart();
     sendCommandMenu(true);
   }
 }

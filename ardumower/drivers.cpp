@@ -167,39 +167,68 @@ void setL9958(int pinDir, int pinPWM, int speed) {
     analogWrite(pinPWM, abs(speed));
   }
 }
-
-// MC33926 motor driver - also used for custom BLDC ZS-11X driver
+/*
+// MC33926 motor driver
 // Check http://forum.pololu.com/viewtopic.php?f=15&t=5272#p25031 for explanations.
 //(8-bit PWM=255, 10-bit PWM=1023)
 // IN1 PinPWM         IN2 PinDir
 // PWM                L     Forward
 // nPWM               H     Reverse
-void setMC33926(int pinDir, int pinPWM, int speed) {
-  //Serial.printf("set speed %d\n",speed);
-  if (speed < 0) {
+void setMC33926(int pinDir, int pinPWM, int speed){
+  if (speed < 0){
     digitalWrite(pinDir, HIGH) ;
-    dacWrite(pinPWM, ((byte)abs(speed)));
-  } else if (speed > 0){ // avoid change of dir at 0 speed
+    PinMan.analogWrite(pinPWM, 255-((byte)abs(speed)));
+  } else {
     digitalWrite(pinDir, LOW) ;
-    dacWrite(pinPWM, ((byte)speed));
+    PinMan.analogWrite(pinPWM, ((byte)speed));
   }
-  if (abs(speed) < 5)
+}
+*/
+
+// hoverboard motor driver used for custom BLDC ZS-11X driver
+// 8-bit ESP32 DAC=255 and voltage divider for slower speeds with higher resolution
+// IN1 PinPWM         IN2 PinDir        extra PinEnable for brake
+// PWM                L     Forward
+// nPWM               H     Reverse
+// careful: driver gets stuck if enable toggled at the wrong time
+void setZSX11H(int pinDir, int pinPWM, int speed) {
+  //Serial.printf("set speed %d\n",speed);
+  if (abs(speed) < 5) // activate brake for near 0 speed
   {
-    if (pinPWM == pinMotorLeftPWM) 
+    if (pinPWM == pinMotorLeftPWM)
     {
-       dacWrite(pinPWM, (0));
-       digitalWrite(pinMotorLeftEnable, HIGH);
+      dacWrite(pinPWM, (0));
+      digitalWrite(pinMotorLeftEnable, HIGH);
     }
-    else 
+    else
     {
       dacWrite(pinPWM, (0));
       digitalWrite(pinMotorRightEnable, HIGH);
     }
   }
-  else
+  else // deactivate brake and set speed and direction
   {
+  /*  in case of stuck driver
+   *   see https://forum.ardumower.de/threads/zs-x11d1-jyqd2021-treiber-und-sunray.24872/
+  //  Rücksetzen des Fehlerzustands für den JYQD2021
+  digitalWrite(pinRemoteSwitch, LOW);
+  digitalWrite(pinRemoteSpeed, LOW);
+  digitalWrite(pinMotorLeftDir, LOW);
+  digitalWrite(pinMotorRightDir, LOW);
+  CONSOLE.println("Starting Recovery JYQD2021 Driver. Brake-Pins and Dir-Pins are LOW for 100ms");
+  delay(100);*/
+  
     if (pinPWM == pinMotorLeftPWM) digitalWrite(pinMotorLeftEnable, LOW);
     else digitalWrite(pinMotorRightEnable, LOW);
+    if (speed < 0) 
+    {  // only change direction in case of speed <> 0
+      digitalWrite(pinDir, HIGH) ;
+      dacWrite(pinPWM, ((byte)abs(speed)));
+    } else if (speed > 0) 
+    { // avoid change of dir at 0 speed
+      digitalWrite(pinDir, LOW) ;
+      dacWrite(pinPWM, ((byte)speed));
+    }
   }
 }
 

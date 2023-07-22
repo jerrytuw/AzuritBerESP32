@@ -622,14 +622,14 @@ void Mower::setActuator(char type, int value) {
   switch (type) {
 
 
-    case ACT_MOTOR_MOW: setMC33926(pinMotorMowDir, pinMotorMowPWM, value); break;// Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setMC33926
+    case ACT_MOTOR_MOW: setZSX11H(pinMotorMowDir, pinMotorMowPWM, value); break;// Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setMC33926
     //bb
-    case ACT_MOTOR_LEFT: setMC33926(pinMotorLeftDir, pinMotorLeftPWM, value); break;//   Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setMC33926
+    case ACT_MOTOR_LEFT: setZSX11H(pinMotorLeftDir, pinMotorLeftPWM, value); break;//   Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setZSX11H
 
     case ACT_MOTOR_RIGHT:
-      if (value >= 0) setMC33926(pinMotorRightDir, pinMotorRightPWM, value * (1 + (double)motorRightOffsetFwd / 100));
-      else setMC33926(pinMotorRightDir, pinMotorRightPWM, value * (1 - (double)motorRightOffsetRev / 100));
-      break; //  Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setMC33926
+      if (value >= 0) setZSX11H(pinMotorRightDir, pinMotorRightPWM, value * (1 + (double)motorRightOffsetFwd / 100));
+      else setZSX11H(pinMotorRightDir, pinMotorRightPWM, value * (1 - (double)motorRightOffsetRev / 100));
+      break; //  Motortreiber einstellung - bei Bedarf Ã¤ndern z.B setL298N auf setZSX11H
 
     case ACT_BUZZER: if (value == 0) Buzzer.noTone(); else Buzzer.tone(value); break;
     case ACT_LED: digitalWrite(pinLED, value); break;

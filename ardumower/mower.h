@@ -26,11 +26,11 @@
 #define PCB_1_3
 
 // ------- Choose robot model (Ardumower or Ardumower Mini) -------------------
-#define ROBOT_ARDUMOWER
+#define ROBOT_ARDUMOWER_ESP32
 //#define ROBOT_MINI
 
 // ------- Choose motor driver (MC33926 is recommended) -----------------------
-#define DRIVER_MC33926
+#define DRIVER_ZSX11H
 //#define DRIVER_L298N
 
 #define IOREF 3.3   // I/O reference voltage for Due
@@ -40,16 +40,17 @@
 
 
 // ------ pins---------------------------------------
-#define pinMotorEnable  13         // EN motors enable
+// pin 55 is dummy for unused pins
+//#define pinMotorEnable  13         // EN motors enable
 
-#define pinMotorLeftEnable  13         // EN motors enable
-#define pinMotorLeftPWM 26          // M1_IN1 left motor PWM pin
+#define pinMotorLeftEnable  13         // EN motors enable - for hoverboard motor brake
+#define pinMotorLeftPWM 26          // M1_IN1 left motor PWM pin - but we use DAC
 #define pinMotorLeftDir 5         // M1_IN2 left motor Dir pin
 #define pinMotorLeftSense 34       // M1_FB  left motor current sense
 #define pinMotorLeftFault 55       // M1_SF  left motor fault
 
-#define pinMotorRightEnable  18         // EN motors enable
-#define pinMotorRightPWM  25        // M2_IN1 right motor PWM pin
+#define pinMotorRightEnable  18         // EN motors enable - for hoverboard motor brake
+#define pinMotorRightPWM  25        // M2_IN1 right motor PWM pin - but we use DAC
 #define pinMotorRightDir 16        // M2_IN2 right motor Dir pin
 #define pinMotorRightSense 35      // M2_FB  right motor current sense
 #define pinMotorRightFault 55      // M2_SF  right motor fault
@@ -69,22 +70,29 @@
 
 #define pinSonarCenterTrigger 2   // ultrasonic sensor pins
 #define pinSonarCenterEcho 15
+
 #define pinSonarRightTrigger 55
 #define pinSonarRightEcho 55
 #define pinSonarLeftTrigger 55
 #define pinSonarLeftEcho 55
+
 #define pinPerimeterRight 36       // perimeter
 #define pinPerimeterLeft 39
+
 #define pinPerimeterCenter 55
 
 
 #define pinGreenLED 55              // DuoLED green
 #define pinRedLED 55                // DuoLED red
 #define pinLED 55                  // LED
+
 #define pinBuzzer 19               // Buzzer
+
 #define pinTilt 55                 // Tilt sensor (required for TC-G158 board)
 #define pinButton 55               // digital ON/OFF button
+
 #define pinBatteryVoltage 32       // battery voltage sensor
+
 #define pinBatterySwitch 55         // battery-OFF switch   
 #define pinChargeVoltage 55        // charging voltage sensor
 #define pinChargeCurrent 55        // charge current sensor
@@ -120,7 +128,8 @@
 // Due has two serial ports: Native (SerialUSB) and Programming (Serial) -
 // redirect 'Console' to -->'SerialUSB' so the Raspberry PI receive all message console data
 // redirect 'Console' to -->'Serial' so the Raspberry PI receive all message console data
-// for all-in-one ESP32 we define a new FakeSerial
+// Note: for all-in-one ESP32 we define a new FakeSerial port over WiFi
+
 
 #define Console Serial
 //#define Console SerialUSB
@@ -134,7 +143,7 @@
 
 #define RaspberryPIPort Serial2  //The PI is connected on NATIVE USB port over USB cable
 
-#define ESP8266port FakeSerial  //esp01
+#define ESP8266port FakeSerial  //esp01 - we use a fake software serial port for pfod
 #define ESP8266_BAUDRATE    115200      // baudrate used for communication with esp8266 Wifi module
 
 #define Bluetooth Serial2  // Ardumower default OK for ESP32 or HC05
