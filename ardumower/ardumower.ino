@@ -1,19 +1,37 @@
-/* This is a crude mixture/stripdown of Ardumower Azurit/AzuritBer and other mower code snippets
+/* This is a crude mixture/stripdown of Ardumower Azurit/AzuritBer/Teensymower and other mower code snippets
  ************************************************************************************************
     with the aim to run a basic mower not on an AVR plus ESP32 but on a single ESP32,
-    AKA "ESP32 all-in-one" with Arduino ESP32 libs. 
+    AKA "ESP32 all-in-one" on an ESP32 development board with Arduino ESP32 libs.
     Still a bit messy because of the quick compromises for adapting it to ESP32 and
     hoverboard motors with their unusual characteristics on ZS-X11H controllers.
     (Also the original hoverboard controller could be used over SoftwareSerial - not included here)
-    Main modifications:
+    Main modifications to AzuritBer:
     - left out all extras considered not essential
     - Adcman version for ESP32 I2S DMA ADC including Perimeter mods
     - fixed I2Cdev for ESP32
     - Flashmem version for ESP32
-    - Motor PWM and tick interface for ZS-X11H and hoverboard motors
+    - Motor PWM(currently DAC) and tick interface for ZS-X11H and hoverboard motors
     - FakeSerial over WiFi for Pfod
-    - ElegantOTA for firmware updates over WiFi an mDNS name "mow.local"
- 
+    - ElegantOTA for firmware updates over WiFi and mDNS name "mow.local"
+    - SimplePing instead of NewPing sonar library
+
+    Hardware:
+    - ESP32 dev board (3.3V level!)
+    - 36V battery from hoverboard (goes up to 42V!)
+    - Pololu 5V switch mode regulator D36V28F5 (up to 50V, 3.2A)
+    - ZS-X11H drivers for hoverboard motors:
+      controlled via DAC, weak at needed slow speeds, only 90 ticks per revolution!
+    - GY-87 IMU on I2C
+    - SR-04 or JSN-SR04T (waterproof but needs > 20cm distance)
+    - ACS712 current sensors (or INA169)
+    - resistor dividers and Schottky diodes for simple voltage level conversions
+
+
+    We still have few unused ports on the ESP32 for more.
+    Not done yet:
+    - activation of mow motor part
+    - long term functional testing
+
 */
 
 /*      DUE and ODOMETRY MANDATORY VERSION
@@ -99,7 +117,7 @@
 #include "config.h"
 #include "FakeSerial.h"
 
-FakeSerialClass FakeSerial; // for pfod
+FakeSerialClass FakeSerial; // virtual serial port for pfod
 
 /**/
 //WiFi code adapted from AzuritBer new passerelle for ESP32
@@ -132,7 +150,7 @@ uint16_t iBT = 0;
 #ifdef PROTOCOL_TCP
 #include <WiFiClient.h>
 WiFiClient TheClient;
-WiFiServer TheServeur(8881);
+WiFiServer TheServeur(8881); // for pfod app
 uint8_t WIFIbuf[bufferSize];
 uint16_t inWiFI = 0;
 #endif
@@ -254,7 +272,7 @@ void setup()  {
   }
   if (debug) Serial.println("\nWiFi connected");
   Serial.print("IP Address: ");
-  Serial.println(WiFi.localIP());  
+  Serial.println(WiFi.localIP());
   Serial.println(WiFi.getHostname());
 
   if (!MDNS.begin("mow")) Serial.println("\nError starting mDNS");

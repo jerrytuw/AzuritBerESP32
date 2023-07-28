@@ -36,15 +36,13 @@
 // NOTE: Verify in config.h that you have enabled 'USE_MOWER' !
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 #include "mower.h"
-#include "NewPing.h"
+#include "SimplePing.h"
 #include <Arduino.h>
 #include "drivers.h"
 #include "i2c.h"
 //#include "pinman.h"
 #include "buzzer.h"
 #include "flashmem.h"
-
-
 
 //#define USE_DEVELOPER_TEST     1      // uncomment for new perimeter signal test (developers)
 
@@ -337,11 +335,10 @@ void IRAM_ATTR OdometryRightISR() {
   }
 */
 
+
 //NewPing NewSonarLeft(pinSonarLeftTrigger, pinSonarLeftEcho, 110);
 //NewPing NewSonarRight(pinSonarRightTrigger, pinSonarRightEcho, 110);
-NewPing NewSonarCenter(pinSonarCenterTrigger, pinSonarCenterEcho, 110);
-
-
+SimplePing NewSonarCenter(pinSonarCenterTrigger, pinSonarCenterEcho, 110);
 
 
 void Mower::setup() {
@@ -589,6 +586,7 @@ int Mower::readSensor(char type) {
 
     // sonar---------------------------------------------------------------------------------------------------
 
+    // the only function used for sonar is ping_cm - replaced for ESP32 interrupt
     case SEN_SONAR_CENTER: return (NewSonarCenter.ping_cm()); break;
     /*    case SEN_SONAR_LEFT: return (NewSonarLeft.ping_cm()); break;
 

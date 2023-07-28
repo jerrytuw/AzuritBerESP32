@@ -1,6 +1,8 @@
 /*
 
   choose your robot type, PCB version, baud rates, pin definitions etc.
+  Note: we adapt most from Due version and change where necessary for ESP32
+  The ESP32 has plenty of ports but we still are limited so "55" is a virtual placeholder pin
 
 */
 
@@ -23,7 +25,8 @@
 
 // ------- Choose one Ardumower PCB revision (1.2, 1.3 etc.) ------------------
 //#define PCB_1_2
-#define PCB_1_3
+//#define PCB_1_3
+#define ESP32_dev_board
 
 // ------- Choose robot model (Ardumower or Ardumower Mini) -------------------
 #define ROBOT_ARDUMOWER_ESP32
@@ -40,29 +43,28 @@
 
 
 // ------ pins---------------------------------------
-// pin 55 is dummy for unused pins
-//#define pinMotorEnable  13         // EN motors enable
+// ***** pin 55 is dummy for unused pins
 
-#define pinMotorLeftEnable  13         // EN motors enable - for hoverboard motor brake
-#define pinMotorLeftPWM 26          // M1_IN1 left motor PWM pin - but we use DAC
-#define pinMotorLeftDir 5         // M1_IN2 left motor Dir pin
-#define pinMotorLeftSense 34       // M1_FB  left motor current sense
-#define pinMotorLeftFault 55       // M1_SF  left motor fault
+#define pinMotorLeftEnable  13       // EN motors enable - for hoverboard motor brake
+#define pinMotorLeftPWM 26           // M1_IN1 left motor PWM pin - but we use DAC (only on 25, 26)
+#define pinMotorLeftDir 5            // M1_IN2 left motor Dir pin
+#define pinMotorLeftSense 34         // M1_FB left motor current sense
+#define pinMotorLeftFault 55         // *M1_SF left motor fault - not used
 
-#define pinMotorRightEnable  18         // EN motors enable - for hoverboard motor brake
-#define pinMotorRightPWM  25        // M2_IN1 right motor PWM pin - but we use DAC
-#define pinMotorRightDir 16        // M2_IN2 right motor Dir pin
-#define pinMotorRightSense 35      // M2_FB  right motor current sense
-#define pinMotorRightFault 55      // M2_SF  right motor fault
+#define pinMotorRightEnable  18      // EN motors enable - for hoverboard motor brake
+#define pinMotorRightPWM  25         // M2_IN1 right motor PWM pin - but we use DAC (only on 25, 26)
+#define pinMotorRightDir 16          // M2_IN2 right motor Dir pin
+#define pinMotorRightSense 35        // M2_FB right motor current sense
+#define pinMotorRightFault 55        // *M2_SF right motor fault - not used
 
 #define pinMotorMowPWM 55           // M1_IN1 mower motor PWM pin (if using MOSFET, use this pin)
-#define pinMotorMowDir 55          // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
-#define pinMotorMowSense 55        // M1_FB  mower motor current sense  
-#define pinMotorMowFault 55        // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)
-#define pinMotorMowEnable 55       // EN mower motor enable      (if using MOSFET/L298N, keep unconnected)
+#define pinMotorMowDir 55           // M1_IN2 mower motor Dir pin (if using MOSFET, keep unconnected)
+#define pinMotorMowSense 55         // M1_FB  mower motor current sense  
+#define pinMotorMowFault 55         // M1_SF  mower motor fault   (if using MOSFET/L298N, keep unconnected)
+#define pinMotorMowEnable 55        // EN mower motor enable      (if using MOSFET/L298N, keep unconnected)
 #define pinMotorMowRpm 55
 
-#define pinBumperLeft 55           // bumper pins
+#define pinBumperLeft 55            // bumper pins
 #define pinBumperRight 55
 
 #define pinDropLeft 55           // drop pins                                                                                          Dropsensor - Absturzsensor
@@ -105,8 +107,8 @@
 
 #define pinOdometryLeft 27     // left odometry sensor
 #define pinOdometryLeft2 55    // left odometry sensor (optional two-wire)
-#define pinOdometryRight 14   // right odometry sensor  
-#define pinOdometryRight2 55  // right odometry sensor (optional two-wire)  
+#define pinOdometryRight 14    // right odometry sensor  
+#define pinOdometryRight2 55   // right odometry sensor (optional two-wire)  
 
 #define pinLawnFrontRecv 55        // lawn sensor front receive
 #define pinLawnFrontSend 55        // lawn sensor front sender 
@@ -143,7 +145,7 @@
 
 #define RaspberryPIPort Serial2  //The PI is connected on NATIVE USB port over USB cable
 
-#define ESP8266port FakeSerial  //esp01 - we use a fake software serial port for pfod
+#define ESP8266port FakeSerial  //esp01 - we use a fake software serial port for pfod over WiFi
 #define ESP8266_BAUDRATE    115200      // baudrate used for communication with esp8266 Wifi module
 
 #define Bluetooth Serial2  // Ardumower default OK for ESP32 or HC05
