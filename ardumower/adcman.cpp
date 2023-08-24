@@ -2,7 +2,7 @@
    Many unused remainders...
    For testing it can generate a synchronous BASEFREQ square wave on PWMPIN and a 1/4 square wave on PWMPIN2.
 
-   It fetches 12bit NUMSAMPLES from 2 perimeter channels in the background to DMA buffer from ADC1, 
+   It fetches 12bit NUMSAMPLES from 2 perimeter channels in the background to DMA buffer from ADC1,
    then these get copied to a foreground array to be processed by Perimeter code.
    Note: To minimise channel switching artefacts 2 extra samples are taken which then are discarded.
    In result buffer, the top 4 bits are the channel number, data is 12 bits.
@@ -58,7 +58,7 @@ volatile int rightCurVal = 666;
 volatile int supplyVal = 777;
 volatile int x = 888;
 
-extern Mower robot; 
+extern Mower robot;
 
 static uint16_t i2s_raw_buff[NUMSAMPLES + 2]; // our 12 bit work buffer
 int16_t ofs[2] = {2048, 2048}; // ADC zero offsets - after 5k6/10k divider and dynamically adapted
@@ -133,6 +133,7 @@ void i2s_adc_init() // set up ADC DMA
 /* get data from DMA buffer and from input pins */
 size_t i2s_run(int chan) // chan: which channel to read, prepare next
 {
+#define CURR_SENSE_OFFSET 1750 // 5k6 to 10k divider on 2.5V bias (=1.6V) @ 3V3 max 12 bits
   size_t bytes_read = 0; // how much we got from DMA into i2s_raw_buff
   //memset(i2s_raw_buff,0x55,(NUMSAMPLES + 2) * 2);
 
@@ -144,8 +145,8 @@ size_t i2s_run(int chan) // chan: which channel to read, prepare next
   }
   i2s_adc_disable(I2S_NUM_0);
   i2s_zero_dma_buffer(I2S_NUM_0);
-  leftCurVal = adc1_get_raw(ADC1_CHANNEL_6); // curl
-  rightCurVal = adc1_get_raw(ADC1_CHANNEL_7); // curr
+  leftCurVal = max(0, (adc1_get_raw(ADC1_CHANNEL_6) - CURR_SENSE_OFFSET)); // curl
+  rightCurVal = max(0, (adc1_get_raw(ADC1_CHANNEL_7) - CURR_SENSE_OFFSET)); // curr
   supplyVal = adc1_get_raw(ADC1_CHANNEL_4); // volt
   x = adc1_get_raw(ADC1_CHANNEL_5);
 
@@ -179,7 +180,7 @@ void ledc_init(void)
 
   ledcSetup(4, BASEFREQ / 4, 8); // PWM, 8-bit resolution
   ledcAttachPin(PWMPIN2, 4);
-  ledcWriteTone(4, BASEFREQ / 4);					  
+  ledcWriteTone(4, BASEFREQ / 4);
 }
 
 // generate a 8bit perimeter raw buffer with min/max from 12 bit samples
@@ -191,7 +192,7 @@ void postProcess2(int sample)
 
   ADCMax[sample] = -9999;
   ADCMin[sample] = 9999;
-								   
+
   for (int i = 0; i < robot.perimeter.numSamples; i ++)
     i2s_raw_buff[i] = ~i2s_raw_buff[i]; // dma sampled data is inverted
 
@@ -203,7 +204,7 @@ void postProcess2(int sample)
 
     robot.perimeter.raw_buff[sample][j++] = value1;
     robot.perimeter.raw_buff[sample][j++] = value0;
- 
+
     /*robot.perimeter.raw_buff[1][j - 2] = value1 / 64;
       robot.perimeter.raw_buff[1][j - 1] = value0 / 64;*/
 
@@ -247,117 +248,118 @@ uint16_t dmaData[ADC_SAMPLE_COUNT_MAX];
 ADCManager ADCMan;
 
 
-ADCManager::ADCManager(){
-  convCounter = 0;  
+ADCManager::ADCManager() {
+  convCounter = 0;
   chNext = 0;
-  chCurr = INVALID_CHANNEL;    
-  for (int i=0; i < ADC_CHANNEL_COUNT_MAX; i++){
+  chCurr = INVALID_CHANNEL;
+  for (int i = 0; i < ADC_CHANNEL_COUNT_MAX; i++) {
     channels[i].sampleCount = 0;
-    channels[i].zeroOfs =0;
-    channels[i].value =0;
+    channels[i].zeroOfs = 0;
+    channels[i].value = 0;
     channels[i].convComplete = false;
-  }  
+  }
   sampleRate = SRATE_38462;   // sampling frequency 38462 Hz
 }
 
 
-void ADCManager::begin(){ 
-adcsetup();   
+void ADCManager::begin() {
+  adcsetup();
 }
 
-void ADCManager::printInfo(){
-  Console.println(F("---ADC---"));  
+void ADCManager::printInfo() {
+  Console.println(F("---ADC---"));
   Console.print(F("conversions="));
   Console.println(convCounter);
   Console.print(F("sampleRate="));
-  switch (sampleRate){
+  switch (sampleRate) {
     case SRATE_38462: Console.println(F("38462")); break;
     case SRATE_19231: Console.println(F("19231")); break;
     case SRATE_9615 : Console.println(F("9615")); break;
-  }    
-  for (int ch=0; ch < ADC_CHANNEL_COUNT_MAX; ch++){
-    if (channels[ch].sampleCount != 0){
+  }
+  for (int ch = 0; ch < ADC_CHANNEL_COUNT_MAX; ch++) {
+    if (channels[ch].sampleCount != 0) {
       Console.print(F("AD"));
       Console.print(ch);
-      Console.print(F("\t"));    
-      Console.print(F("sampleCount="));    
-      Console.println(channels[ch].sampleCount);      
-      Console.print(F("\t"));    
-      Console.print(F("autoCalibrate="));    
-      Console.println(channels[ch].autoCalibrate);      
+      Console.print(F("\t"));
+      Console.print(F("sampleCount="));
+      Console.println(channels[ch].sampleCount);
+      Console.print(F("\t"));
+      Console.print(F("autoCalibrate="));
+      Console.println(channels[ch].autoCalibrate);
     }
   }
-  
+
 }
 
-int ADCManager::getConvCounter(){
+int ADCManager::getConvCounter() {
   int res = convCounter;
   convCounter = 0;
   return res;
 }
 
-void ADCManager::setupChannel(byte pin, int samplecount, boolean autocalibrate){
-  byte ch = pin-A0;
+void ADCManager::setupChannel(byte pin, int samplecount, boolean autocalibrate) {
+  byte ch = pin - A0;
   pinMode(pin, INPUT);
-  channels[ch].pin = pin; 
-  channels[ch].autoCalibrate = autocalibrate;  
+  channels[ch].pin = pin;
+  channels[ch].autoCalibrate = autocalibrate;
   channels[ch].convComplete = false;
   channels[ch].maxValue = 0;
   channels[ch].minValue = 0;
   setSampleCount(ch, samplecount);
 }
 
-void ADCManager::setSampleCount(byte ch, int samplecount){
+void ADCManager::setSampleCount(byte ch, int samplecount) {
   samplecount = min(samplecount, ADC_SAMPLE_COUNT_MAX);
   channels[ch].samples = (int8_t *)realloc(channels[ch].samples, samplecount);
-  channels[ch].sampleCount = samplecount;  
+  channels[ch].sampleCount = samplecount;
 }
 
-boolean ADCManager::isConvComplete(byte pin){
-  byte ch = pin-A0;
+boolean ADCManager::isConvComplete(byte pin) {
+  byte ch = pin - A0;
   return channels[ch].convComplete;
 }
 
 
-void ADCManager::restartConv(byte pin){
-  byte ch = pin-A0;
+void ADCManager::restartConv(byte pin) {
+  byte ch = pin - A0;
   channels[ch].convComplete = false;
 }
 
-int8_t* ADCManager::getSamples(byte pin){
-  byte ch = pin-A0;
+int8_t* ADCManager::getSamples(byte pin) {
+  byte ch = pin - A0;
   return channels[ch].samples;
 }
 
-int ADCManager::getSampleCount(byte pin){
-  byte ch = pin-A0;
+int ADCManager::getSampleCount(byte pin) {
+  byte ch = pin - A0;
   return channels[ch].sampleCount;
 }
 
-uint16_t ADCManager::getValue(byte pin){  //return integer 0 to 4096 12 bit ADC
-  /*byte ch = pin-A0;  
-  channels[ch].convComplete = false;
-  return channels[ch].value;*/
-  if(pin==pinMotorRightSense) return rightCurVal;
-  if(pin==pinMotorLeftSense) return leftCurVal;
+uint16_t ADCManager::getValue(byte pin) { //return integer 0 to 4096 12 bit ADC
+  /*byte ch = pin-A0;
+    channels[ch].convComplete = false;
+    return channels[ch].value;*/
+  if (pin == pinMotorRightSense) return rightCurVal;
+  if (pin == pinMotorLeftSense) return leftCurVal;
+  if (pin == pinBatteryVoltage) return supplyVal;
 }
 
-float ADCManager::getVoltage(byte pin){
+float ADCManager::getVoltage(byte pin) {
   uint16_t v = getValue(pin);
   //bb
-   // return ((float)v) / ((float) ((1 << ADC_BITS)-1)) * ADC_REF;
+  // return ((float)v) / ((float) ((1 << ADC_BITS)-1)) * ADC_REF;
   return ((float)v) / ((float) ((4096))) * ADC_REF;
 }
 
-void ADCManager::init(byte ch){
+void ADCManager::init(byte ch) {
 
 }
 
 // start another conversion
-void ADCManager::run(){
-   extern int16_t sumx[2][255];
-   extern int16_t posmin[2];
-   extern int16_t posmax[2];
+void ADCManager::run() {
+  extern int16_t sumx[2][255];
+  extern int16_t posmin[2];
+  extern int16_t posmax[2];
   if (millis() > nextPeri)
   {
     nextPeri = millis() + nextLoopTime;
@@ -440,16 +442,16 @@ void ADCManager::run(){
 }
 
 
-void ADCManager::postProcess(byte ch){  
+void ADCManager::postProcess(byte ch) {
   //Console.print("post ch");
   //Console.print(ch);
   //Console.print("=");
   //Console.print(dmaData[0]);
   uint16_t vmax = 0;
-  uint16_t vmin = 9999;   
-  if (channels[ch].autoCalibrate) {  
-    // determine zero point    
-    for (int i=0; i < channels[ch].sampleCount; i++){
+  uint16_t vmin = 9999;
+  if (channels[ch].autoCalibrate) {
+    // determine zero point
+    for (int i = 0; i < channels[ch].sampleCount; i++) {
       uint16_t value = dmaData[i];
       vmax = max(vmax, value);
       vmin = min(vmin, value);
@@ -457,26 +459,26 @@ void ADCManager::postProcess(byte ch){
     // determine gliding min,max,ofs
     channels[ch].maxValue = 0.9 * ((double)channels[ch].maxValue) + 0.1 * ((double)vmax);
     channels[ch].minValue = 0.9 * ((double)channels[ch].minValue) + 0.1 * ((double)vmin);
-    channels[ch].zeroOfs = channels[ch].minValue + (channels[ch].maxValue - channels[ch].minValue)/2.0;
-  }  
+    channels[ch].zeroOfs = channels[ch].minValue + (channels[ch].maxValue - channels[ch].minValue) / 2.0;
+  }
   // ------determine average value-------
   int32_t res = 0;
   int i;
-  for (i=0; i < channels[ch].sampleCount; i++){
-    uint16_t value = dmaData[i];    
+  for (i = 0; i < channels[ch].sampleCount; i++) {
+    uint16_t value = dmaData[i];
     //Console.print(" v1=");
-    //Console.print(value);    
+    //Console.print(value);
     value -= channels[ch].zeroOfs;
     res += value;
   }
   //Console.print(" res=");
-  //Console.print(res);    
-  channels[ch].value = ((float)res) / ((float)channels[ch].sampleCount);      
+  //Console.print(res);
+  channels[ch].value = ((float)res) / ((float)channels[ch].sampleCount);
   // --------transfer DMA samples----------
-  for (int i=0; i < channels[ch].sampleCount; i++){
+  for (int i = 0; i < channels[ch].sampleCount; i++) {
     uint16_t value = dmaData[i];
     value -= channels[ch].zeroOfs;
-    channels[ch].samples[i] = min(SCHAR_MAX,  max(SCHAR_MIN, ((int8_t) (value >> (ADC_BITS-8)))+0 )); // convert to 8 bits
+    channels[ch].samples[i] = min(SCHAR_MAX,  max(SCHAR_MIN, ((int8_t) (value >> (ADC_BITS - 8))) + 0 )); // convert to 8 bits
   }
   //Console.print(" val");
   //Console.println(channels[ch].value);

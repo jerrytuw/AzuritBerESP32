@@ -34,7 +34,7 @@ int buffersize = 1000;   //Amount of readings used to average, make it higher to
 int acel_deadzone = 8;   //Acelerometer error allowed, make it lower to get more precision, but sketch may not converge  (default:8)
 int giro_deadzone = 1;   //Giro error allowed, make it lower to get more precision, but sketch may not converge  (default:1)
 
-MPU6050 mpu(0x68);
+MPU6050 mpu(0x68); // note: need to enable bypass for compass in GY-87
 
 boolean blinkState = false;
 float nextTimeLoop;
@@ -55,14 +55,17 @@ float yprtest[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and
 
 #define ADDR 600
 #define MAGIC 6
-#define HMC5883L (0x1E)          // HMC5883L compass sensor (GY-80 PCB)
+#define HMC5883L (0x1E)          // HMC5883L compass sensor (GY-80 PCB), GY-87 in bypass mode
 #define QMC5883L (0x0D)          // HMC5883L compass sensor (GY-80 PCB)
 
 void IMUClass::begin() {
   if (!robot.imuUse) return;
 
   //initialisation of Compass
-  if (robot.CompassUse) {
+  if (robot.CompassUse) { // set mpu transparent for compass in GY-87
+    I2CwriteTo(0x68, 0x37, 0x02);
+    I2CwriteTo(0x68, 0x6A, 0x00);
+    I2CwriteTo(0x68, 0x6B, 0x00);
 
     if (COMPASS_IS == HMC5883L) {
       Console.println(F("--------------------------------- COMPASS HMC5883L INITIALISATION ---------------"));
@@ -101,7 +104,7 @@ void IMUClass::begin() {
       delay(500); //    wait  before doing the first reading
     }
   }
-  
+
 
   loadCalib();
   printCalib();
@@ -115,13 +118,15 @@ void IMUClass::begin() {
   Console.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();
 
+  mpu.setI2CBypassEnabled(true); // activate bypass for compass in GY-87
+
   mpu.setXAccelOffset(ax_offset); //-1929
   mpu.setYAccelOffset(ay_offset); //471
   mpu.setZAccelOffset(az_offset); // 1293
   mpu.setXGyroOffset(gx_offset);//-1
   mpu.setYGyroOffset(gy_offset);//-3
   mpu.setZGyroOffset(gz_offset);//-2
-  
+
   CompassGyroOffset = 0;
 
   // make sure it worked (returns 0 if so)
@@ -155,7 +160,7 @@ void IMUClass::begin() {
     CompassGyroOffset = 0;
   }
 
-  
+
 }
 
 // weight fusion (w=0..1) of two radiant values (a,b)
@@ -382,16 +387,16 @@ void IMUClass::run() {
 
     comYaw = scalePI( atan2(comTilt.y, comTilt.x)  ); // the compass yaw not accurate but reliable
   }
-  
+
   // / CompassGyroOffset=distancePI( scalePI(ypr.yaw-CompassGyroOffset), comYaw);
   ypr.yaw = scalePI(gyroAccYaw + CompassGyroOffset) ;
 
 }
 
 void IMUClass::readQMC5883L() {
-  
+
   uint8_t buf[6];
- 
+
   if (I2CreadFrom(QMC5883L, 0x00, 6, (uint8_t*)buf) != 6) {
     Console.println("error when read compass");
     robot.addErrorCounter(ERR_IMU_COMM);
@@ -420,6 +425,7 @@ void IMUClass::readQMC5883L() {
 }
 void IMUClass::readHMC5883L() {
   uint8_t buf[6];
+  
   if (I2CreadFrom(HMC5883L, 0x03, 6, (uint8_t*)buf) != 6) {
     Console.println("error when read compass");
     robot.addErrorCounter(ERR_IMU_COMM);
@@ -454,10 +460,10 @@ void IMUClass::loadSaveCalib(boolean readflag) {
   short magic = MAGIC;
   if (readflag) Console.println(F("Load Calibration"));
   else Console.println(F("Save Calibration"));
-    Console.print(F("with magic:"));
-    Console.print(magic);
-    Console.print(F(" at address:"));
-    Console.println(ADDR);
+  Console.print(F("with magic:"));
+  Console.print(magic);
+  Console.print(F(" at address:"));
+  Console.println(ADDR);
 
   eereadwrite(readflag, addr, magic); // magic
   //accelgyro offset
@@ -539,25 +545,25 @@ void IMUClass::saveCalib() {
 
 
 void IMUClass::deleteCompassCalib() {
-/*  int addr = ADDR;
-  eewrite(addr, (short)0); // magic
-  comOfs.x = comOfs.y = comOfs.z = 0;
-  comScale.x = comScale.y = comScale.z = 2;
-  Console.println("Compass calibration deleted");*/
+  /*  int addr = ADDR;
+    eewrite(addr, (short)0); // magic
+    comOfs.x = comOfs.y = comOfs.z = 0;
+    comScale.x = comScale.y = comScale.z = 2;
+    Console.println("Compass calibration deleted");*/
 }
 void IMUClass::deleteAccelGyroCalib() {
-/*  int addr = ADDR;
-  eewrite(addr, (short)0); // magic
-  ax_offset = ay_offset = az_offset = 0;
-  gx_offset = gy_offset = gz_offset = 0;
-  mpu.setXAccelOffset(1); //-1929
-  mpu.setYAccelOffset(1); //471
-  mpu.setZAccelOffset(1); // 1293
-  mpu.setXGyroOffset(1);//-1
-  mpu.setYGyroOffset(1);//-3
-  mpu.setZGyroOffset(1);//-2
+  /*  int addr = ADDR;
+    eewrite(addr, (short)0); // magic
+    ax_offset = ay_offset = az_offset = 0;
+    gx_offset = gy_offset = gz_offset = 0;
+    mpu.setXAccelOffset(1); //-1929
+    mpu.setYAccelOffset(1); //471
+    mpu.setZAccelOffset(1); // 1293
+    mpu.setXGyroOffset(1);//-1
+    mpu.setYGyroOffset(1);//-3
+    mpu.setZGyroOffset(1);//-2
 
-  Console.println("AccelGyro calibration deleted ");*/
+    Console.println("AccelGyro calibration deleted ");*/
 }
 
 
@@ -698,7 +704,7 @@ void IMUClass::calibComUpdate() {
   comLast = com;
   delay(20);
   readHMC5883L();
- 
+
   //watchdogReset();
   boolean newfound = false;
   if ( (abs(com.x - comLast.x) < 10) &&  (abs(com.y - comLast.y) < 10) &&  (abs(com.z - comLast.z) < 10) ) {

@@ -2,29 +2,23 @@
 #include "config.h"
 #include <Arduino.h>
 //#include "DueTimer.h"
-//#define pinBuzzer 53 
+//#define pinBuzzer 53
 BuzzerClass Buzzer;
-
-static boolean tone_pin_state = false;
-
-void toneHandler() {
-  digitalWrite(pinBuzzer, tone_pin_state = !tone_pin_state);
-}
+#define beepChannel 2
 
 void BuzzerClass::begin()
 {
+  ledcSetup(beepChannel, 1000, 8);
   pinMode(pinBuzzer, OUTPUT);
-  digitalWrite(pinBuzzer, LOW);
+  ledcWrite(beepChannel, 0);
+  ledcAttachPin(pinBuzzer, beepChannel);
 }
 
 void BuzzerClass::tone( unsigned int  freq )
 {
-  pinMode(pinBuzzer, OUTPUT);
-//xx  Timer1.attachInterrupt(toneHandler).setFrequency(freq).start();
-
+  ledcWriteTone(beepChannel, freq);
 }
 
 void BuzzerClass::noTone() {
-//xx  Timer1.stop();
-  digitalWrite(pinBuzzer, LOW);
+  ledcWrite(beepChannel, 0);
 }

@@ -359,7 +359,7 @@ void RemoteControl::sendMotorMenu(boolean update) {
   serialPort->print(robot->motorRpmCoeff);
 
   sendSlider("a06", F("Speed max in rpm"), robot->motorSpeedMaxRpm, "", 1, 50, 20);
-  sendSlider("a15", F("Speed max in pwm"), robot->motorSpeedMaxPwm, "", 1, 255, 150);
+  sendSlider("a15", F("Speed max in pwm"), robot->motorSpeedMaxPwm, "", 1, 255, 50);
   sendSlider("a11", F("Accel"), robot->motorAccel, "", 1, 2000, 500);
   sendSlider("a18", F("Power ignore time"), robot->motorPowerIgnoreTime, "", 1, 8000, 1);
   sendSlider("a07", F("Roll Degrees max"), robot->motorRollDegMax, "", 1, 360, 1);
@@ -1012,7 +1012,7 @@ void RemoteControl::sendBatteryMenu(boolean update) {
   //bb add
   if (robot->developerActive) {
     sendSlider("j09", F("Charge Factor"), robot->batChgFactor, "", 0.01, 12, 9);
-    sendSlider("j05", F("Battery Factor "), robot->batFactor, "", 0.01, 12, 9);
+    sendSlider("j05", F("Battery Factor "), robot->batFactor, "", 0.01, 30, 9);
     sendSlider("j08", F("Sense factor"), robot->batSenseFactor, "", 0.01, 2, 1);
   }
   //end add
@@ -1684,9 +1684,14 @@ void RemoteControl::processTestOdoMenu(String pfodCmd) {
   }
   else if (pfodCmd == "yt4") {
     robot->odometryRight = robot->odometryLeft = 0;
-    robot->motorLeftSpeedRpmSet = robot->motorRightSpeedRpmSet = robot->motorSpeedMaxRpm;
+/*    robot->motorLeftSpeedRpmSet = robot->motorRightSpeedRpmSet = robot->motorSpeedMaxRpm;
     robot->stateEndOdometryRight = robot->odometryRight + 300.00 * robot->odometryTicksPerCm;
-    robot->stateEndOdometryLeft = robot->odometryLeft + 300.00 * robot->odometryTicksPerCm;       
+    robot->stateEndOdometryLeft = robot->odometryLeft + 300.00 * robot->odometryTicksPerCm;     */
+    robot->motorLeftSpeedRpmSet = 0;
+    robot->motorRightSpeedRpmSet = -robot->motorSpeedMaxRpm ;
+    robot->stateEndOdometryRight = robot->odometryRight - robot->odometryTicksPerRevolution;
+    robot->stateEndOdometryLeft = 0;
+  
     robot->setNextState(STATE_TEST_MOTOR, robot->rollDir);
     sendTestOdoMenu(true);
   }
@@ -1767,6 +1772,7 @@ void RemoteControl::processCompassMenu(String pfodCmd) {
 
 // process pfodState
 void RemoteControl::run() {
+  //Serial.println(pfodState);
   if (pfodState == PFOD_PLOT_BAT) {
     if (millis() >= nextPlotTime) {
       nextPlotTime = millis() + 60000;
@@ -1860,7 +1866,6 @@ void RemoteControl::run() {
     }
   } else if (pfodState == PFOD_PLOT_PERIMETER) {
     if (millis() >= nextPlotTime) {
-
       if (perimeterCaptureIdx >= RAW_SIGNAL_SAMPLE_SIZE * 3)
         perimeterCaptureIdx = 0;
 
@@ -1883,7 +1888,7 @@ void RemoteControl::run() {
       serialPort->print(!robot->perimeter.signalTimedOut(0));
       serialPort->print(",");
       serialPort->println(robot->perimeter.getFilterQuality(0));
-      //perimeterCaptureIdx++;
+      //perimeterCaptureIdx++; // we limit to first only
     }
   } else if (pfodState == PFOD_PLOT_GPS) {
     if (millis() >= nextPlotTime) {
@@ -1941,9 +1946,10 @@ boolean RemoteControl::readSerial() {
       else pfodCmd += ch;
     }
     if (pfodCmdComplete) {
-      //Console.print("pfod cmd=");
-      //Console.println(pfodCmd);
-      pfodState = PFOD_MENU;
+      //Console.print("pfod cmd='");
+      //Console.print(pfodCmd);
+      //Console.println("'");
+      if (pfodCmd != " ") pfodState = PFOD_MENU; // otherwise keepalive stops plot
 
       if (pfodCmd == ".") {
         robot->ConsoleToPfod = false;

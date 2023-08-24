@@ -70,8 +70,8 @@
 #define pinDropLeft 55           // drop pins                                                                                          Dropsensor - Absturzsensor
 #define pinDropRight 55          // drop pins                                                                                          Dropsensor - Absturzsensor
 
-#define pinSonarCenterTrigger 2   // ultrasonic sensor pins
-#define pinSonarCenterEcho 15
+#define pinSonarCenterTrigger 15   // ultrasonic sensor pins
+#define pinSonarCenterEcho 12
 
 #define pinSonarRightTrigger 55
 #define pinSonarRightEcho 55
@@ -120,8 +120,8 @@
 #define pinRain 55                 // rain sensor
 
 // ---------------- COMPASS Selection ---------------------------
-//#define COMPASS_IS HMC5883L
-#define COMPASS_IS QMC5883L
+#define COMPASS_IS HMC5883L
+//#define COMPASS_IS QMC5883L
 
 
 

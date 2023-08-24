@@ -193,6 +193,7 @@ enum {
   STATE_ACCEL_FRWRD, // when start from calib or off need to accel before motorodo
   STATE_ENDLANE_STOP, //when mower is at the end of the lane avoid to reverse before roll
   STATE_START_FROM_STATION, //when mower is station and a start command is receive need to start again IMU ,perimeter signal etc....
+  STATE_TEST_INIT, // for some static test settings
   
 };
 

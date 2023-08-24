@@ -96,7 +96,7 @@ Mower::Mower() {
   AngleRotate = 100;
   SpeedOdoMin = 20;
   SpeedOdoMax = 100;
-  odoLeftRightCorrection     = true;       // left-right correction for straight lines used in manual mode
+  odoLeftRightCorrection     = false;       // left-right correction for straight lines used in manual mode
   autoAdjustSlopeSpeed = true;  //adjust the speed on slope to have same speed on uphill and downhill
 
 
@@ -210,12 +210,12 @@ Mower::Mower() {
   remoteUse         = 0;       // use model remote control (R/C)?
   // ------ battery -------------------------------------
   batMonitor = false;              // monitor battery and charge voltage?
-  batGoHomeIfBelow = 24.3;     // drive home voltage (Volt)
-  batSwitchOffIfBelow = 23;  // switch off battery if below voltage (Volt)
+  batGoHomeIfBelow = 35;     // drive home voltage (Volt)
+  batSwitchOffIfBelow = 34;  // switch off battery if below voltage (Volt)
   batSwitchOffIfIdle = 300;      // switch off battery if idle (minutes)
-  batFactor       = 10.88;     //depend of the resistor divisor on board R12 and R13
+  batFactor       = 27.88;     //depend of the resistor divisor on board R12 and R13
   batChgFactor    = 10.89;     //depend of the resistor divisor on board R9 and R10
-  batFull          = 29.4;     // battery reference Voltage (fully charged) PLEASE ADJUST IF USING A DIFFERENT BATTERY VOLTAGE! FOR a 12V SYSTEM TO 14.4V
+  batFull          = 42.0;     // battery reference Voltage (fully charged) PLEASE ADJUST IF USING A DIFFERENT BATTERY VOLTAGE! FOR a 12V SYSTEM TO 14.4V
   batChargingCurrentMax = 2; // maximum current your charger can devliver
   batFullCurrent  = 0.1;      // current flowing when battery is fully charged
   startChargingIfBelow = 25.0; // start charging if battery Voltage is below
@@ -373,8 +373,8 @@ void Mower::setup() {
 
   // LED, buzzer, battery
   //pinMode(pinLED, OUTPUT);
-  pinMode(pinBuzzer, OUTPUT);
-  digitalWrite(pinBuzzer, 0);
+  //pinMode(pinBuzzer, OUTPUT);
+  //digitalWrite(pinBuzzer, 0);
   //pinMode(pinBatteryVoltage, INPUT);
   //pinMode(pinChargeCurrent, INPUT);
   //pinMode(pinChargeVoltage, INPUT);

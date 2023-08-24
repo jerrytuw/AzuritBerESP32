@@ -1,16 +1,25 @@
-This repo aims at a crude and messy modification for running the essential ardumower code on a single ESP32.
+This repo aims at a crude and messy modification for running the essential ardumower code on a **single ESP32**.
 
 So far tested:
- - general running/state control
- - drive motor control for 2 hoverboard motors on ZS-X11H (note: stop input just pulls 0-5V low)
- - perimeter (2 channels - 1 center used)
- - (sonar)
- - GY-521 IMU - actually GY-87
- - pfod interface
+ - simple PCB
+ - general (basic) running/state control for line move
+ - drive motor control for 2 hoverboard motors on ZS-X11H (note: stop input just pulls 0-5V input low)
+ - ESP32 adc(man) code, perimeter (2 channels - one used), battery, motor currents
+ - 1 sonar simple code (interrupt based)
+ - GY-521 IMU - actually with GY-87 - bypass mode for compass added
+ - buzzer
+ - pfod interface over WIFI pseudo serial
+ - Elegant OTA update over WIFI
 Not tested:
- - mow motor
- - parameter optimizations
+ - mow motor (but foreseen on PCB)
+ - parameter optimizations and simplifications
+Planned:
+ - add MCP23008 I2C port expander on PCB
  
+Notes:
+Hoverboard motors are nice but have low torque at low enough speeds...
+Also https://github.com/trycoon/liam-esp seems interesting.
+
 Based mainly on:
  
 # AzuritBer
